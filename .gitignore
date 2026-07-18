@@ -1,1 +1,24 @@
-__pycache__/`n*.pyc`n
+__pycache__/
+*.pyc
+
+# Files exceeding GitHub's 100MiB hard push limit
+2023-03-14/SU_Sitzungsunterlagen_oeffentlich.pdf
+2023-02-14/SU_Sitzungsunterlagen_oeffentlich.pdf
+2022-12-06/SU_Sitzungsunterlagen_oeffentlich.pdf
+2021-10-19/SU_Sitzungsunterlagen_oeffentlich.pdf
+2023-04-25/SU_Sitzungsunterlagen_oeffentlich.pdf
+2024-02-20/SU_Sitzungsunterlagen_oeffentlich.pdf
+2022-03-29/SU_Sitzungsunterlagen_oeffentlich.pdf
+2021-07-20/SU_Sitzungsunterlagen_oeffentlich.pdf
+2025-06-24/SU_Sitzungsunterlagen_oeffentlich.pdf
+2020-05-19/SU_Sitzungsunterlagen_oeffentlich.pdf
+2023-06-20/SU_Sitzungsunterlagen_oeffentlich.pdf
+2022-07-26/SU_Sitzungsunterlagen_oeffentlich.pdf
+2021-05-11/SU_Sitzungsunterlagen_oeffentlich.pdf
+2021-09-21/TOP_Oe18_611-063-2021_Baublock_Fuchsengarten_-_Schulstrasse_Ziele_f/Anlage_4_Blockkonzept_Gesamtfassung.pdf
+2021-09-21/SU_Sitzungsunterlagen_oeffentlich.pdf
+2025-07-15/SU_Sitzungsunterlagen_oeffentlich.pdf
+2022-05-17/SU_Sitzungsunterlagen_oeffentlich.pdf
+2020-12-08/SU_Sitzungsunterlagen_oeffentlich.pdf
+2021-06-15/SU_Sitzungsunterlagen_oeffentlich.pdf
+2020-05-19/TOP_Oe11_611-324-2020_5_Deckblatt_zum_Bebauungsplan_Nr_402_Nahverso/Anlage_5_-_Ueberarbeitung_Siegerentwurf_Stand_April_2020.pdf
