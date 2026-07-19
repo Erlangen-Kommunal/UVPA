@@ -48,13 +48,15 @@ SCRAPE_YEARS = range(2020, 2027)
 MODEL = "claude-opus-4-8"
 MAX_TOKENS = 4096
 
-# Kept under the pre-commit hook's 10 MiB cutoff (.githooks/pre-commit) with headroom.
-COMPRESS_MAX_BYTES = 9 * 1024 * 1024
+# Kept under the pre-commit hook's 12 MiB cutoff (.githooks/pre-commit) with headroom.
+COMPRESS_MAX_BYTES = 8 * 1024 * 1024
 COMPRESS_ATTEMPTS = [  # (max image dimension px, JPEG quality) — escalating aggressiveness
     (1600, 65),
     (1200, 55),
     (900, 40),
     (700, 30),
+    (500, 25),
+    (350, 15),
 ]
 
 HTTP_HEADERS = {
@@ -933,7 +935,7 @@ def run(force_refresh: bool = False) -> None:
         print()
 
 
-COMPRESS_TIMEOUT_SECS = 120  # a malformed source PDF can make MuPDF spin near-forever
+COMPRESS_TIMEOUT_SECS = 180  # a malformed source PDF can make MuPDF spin near-forever
 
 
 def compress_existing() -> None:
