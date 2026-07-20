@@ -13,17 +13,25 @@ Documents are indexed per session and per Tagesordnungspunkt (TOP), then stored 
       WiPlan_2026.pdf
 
 Usage:
-    python uvp_agent.py [--refresh]
+    python uvp_agent.py --sync       # non-interactive: refresh index, download new
+                                     #   documents, compress oversized PDFs. NO LLM,
+                                     #   NO API key. This is what the CI workflow runs.
     python uvp_agent.py --compress   # shrink already-downloaded PDFs >=10MB in place
+    python uvp_agent.py [--refresh]  # interactive chat agent (needs ANTHROPIC_API_KEY)
 
 Environment:
-    ANTHROPIC_API_KEY  required
+    ANTHROPIC_API_KEY  required ONLY for the interactive chat agent (no --sync/--compress).
 
 Optional:
     pip install pypdf     enables PDF text extraction
     pip install pymupdf   enables automatic compression of PDFs >=10MB (see COMPRESS_MAX_BYTES);
                            newly downloaded oversized files are compressed automatically, since
                            the pre-commit hook (.githooks/pre-commit) rejects anything >=10MB
+
+Design note: document ANALYSIS (LLM-generated enrichment/docs/*.md summaries) is
+deliberately NOT done here or in CI. It is run manually and locally via the
+IDE's AI agent — see enrichment/README.md. Everything in this file is
+deterministic and LLM-free except the standalone interactive chat agent.
 """
 
 import argparse
@@ -986,14 +994,67 @@ def compress_existing() -> None:
     print(f"\nFertig: {n_ok} komprimiert, {n_fail} weiterhin >=10MB, {n_timeout} übersprungen (Timeout).")
 
 
+def sync_all() -> int:
+    """Nicht-interaktiver Sync für CI/Automation — OHNE LLM, ohne API-Key.
+
+    1. Index von ratsinfo.erlangen.de neu einlesen (index.json aktualisieren).
+    2. Alle im Index gelisteten, noch nicht heruntergeladenen Dokumente laden.
+    3. Übergroße PDFs in place komprimieren (Pre-Commit-Hook erzwingt <10MB).
+
+    Baustein für den deterministischen GitHub-Actions-Workflow. Die
+    LLM-gestützte Analyse (enrichment/*.md) passiert bewusst NICHT hier,
+    sondern manuell und lokal. Rückgabe: Anzahl neu geladener Dokumente.
+    """
+    http = requests.Session()
+    print(f"Sync {COMMITTEE_NAME}, Erlangen — Index wird neu eingelesen …")
+    sessions = load_index(http, force=True)
+    print(f"Index: {len(sessions)} Sitzungen.")
+
+    new_docs, failed = 0, 0
+    for s in sessions:
+        session_dir = DOWNLOAD_DIR / s["folder"]
+        session_dir.mkdir(parents=True, exist_ok=True)
+        targets = [(d, session_dir) for d in s["header_docs"]]
+        for top in s["tops"]:
+            top_dir = DOWNLOAD_DIR / top["folder"]
+            if top["docs"]:
+                top_dir.mkdir(parents=True, exist_ok=True)
+            targets += [(d, top_dir) for d in top["docs"]]
+
+        for doc, target_dir in targets:
+            if (target_dir / doc["filename"]).exists():
+                continue
+            result = _download_one(doc, target_dir, http)
+            if result.startswith("OK:"):
+                new_docs += 1
+                print(f"  + {result}")
+            elif not result.startswith("Already:"):
+                failed += 1
+                print(f"  ! {result}")
+
+    print(f"\nDownload: {new_docs} neue Dokumente, {failed} Fehler.")
+
+    # Sicherheitsnetz: alles, was der Kompressions-Trigger in _download_one nicht
+    # klein genug bekam, hier erneut angehen (nutzt Subprozess-Timeout-Schutz).
+    print("Prüfe auf übergroße PDFs …")
+    compress_existing()
+    return new_docs
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description=f"Claude AI agent for {COMMITTEE_NAME} document retrieval"
+        description=f"UVP-Dokument-Agent — {COMMITTEE_NAME}, Erlangen"
     )
     parser.add_argument(
         "--refresh",
         action="store_true",
         help="Force re-scrape the document index from ratsinfo.erlangen.de",
+    )
+    parser.add_argument(
+        "--sync",
+        action="store_true",
+        help="Non-interactive: refresh index, download all new documents, compress "
+             "oversized PDFs, then exit. No LLM, no API key (for CI/automation).",
     )
     parser.add_argument(
         "--compress",
@@ -1012,6 +1073,9 @@ def main() -> None:
         sys.exit(0 if ok else 1)
     if args.compress:
         compress_existing()
+        return
+    if args.sync:
+        sync_all()
         return
     run(force_refresh=args.refresh)
 
