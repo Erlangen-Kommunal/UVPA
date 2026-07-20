@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-LLM-Anreicherung der UVPA-Sitzungsdokumente (Phase 2) — Google Gemini.
+LLM-Anreicherung der UVPA-Sitzungsdokumente (Phase 2).
 
 Erzeugt pro Dokument eine Markdown-Datei unter enrichment/docs/<pfad>.md mit
 YAML-Frontmatter (themen, modell, erstellt) und einer deutschen Kurz-
@@ -12,18 +12,18 @@ Läuft inkrementell: Dokumente mit vorhandener .md-Datei werden übersprungen �
 der wöchentliche Sync bezahlt nur neue Dokumente. Jede fertige Zusammenfassung
 wird sofort geschrieben (absturzsicher, einfach neu starten).
 
+HINWEIS: Der LLM-Provider wird gerade neu festgelegt. Die frühere
+Gemini-Anbindung (Nutzung des GEMINI_API_KEY) wurde auf Wunsch des
+Projektinhabers entfernt; der Basislauf vom 2026-07-19 (4.736 Dokumente,
+gemini-3.1-flash-lite) liegt bereits unter enrichment/docs/. Für künftige
+Läufe muss call_llm() mit dem neuen Provider implementiert werden.
+
 Aufruf:
     python enrichment/enrich.py [--limit N] [--dry-run] [--model M] [--workers N]
-
-Umgebung:
-    GEMINI_API_KEY  erforderlich (außer bei --dry-run). Unter Windows wird
-    zusätzlich die systemweite Umgebungsvariable (Machine) gelesen, falls die
-    Shell sie nicht geerbt hat.
 """
 
 import argparse
 import json
-import os
 import re
 import sys
 import threading
@@ -37,8 +37,7 @@ DOCS_OUT = REPO / "enrichment" / "docs"
 THEMEN_MD = REPO / "enrichment" / "themen.md"
 INDEX_JSON = REPO / "index.json"
 
-DEFAULT_MODEL = "gemini-3.1-flash-lite"
-MAX_OUTPUT_TOKENS = 1200
+DEFAULT_MODEL = ""          # wird mit dem neuen LLM-Provider festgelegt
 TEXT_CAP_DEFAULT = 12_000   # Zeichen Dokumenttext pro Anfrage
 TEXT_CAP_LONG = 20_000      # für NI/EI/SU (decken ganze Sitzungen ab)
 
@@ -57,25 +56,6 @@ TYPE_INSTRUCTIONS = {
     "":   "Anlage: Was für ein Dokument ist das (Plan, Karte, Bericht, "
           "Präsentation, Stellungnahme ...) und was zeigt bzw. enthält es?",
 }
-
-
-def get_api_key() -> str | None:
-    """GEMINI_API_KEY aus der Umgebung; unter Windows auch aus der Machine-Ebene."""
-    key = os.environ.get("GEMINI_API_KEY")
-    if key:
-        return key
-    if sys.platform == "win32":
-        import winreg
-        try:
-            with winreg.OpenKey(
-                winreg.HKEY_LOCAL_MACHINE,
-                r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment",
-            ) as k:
-                value, _ = winreg.QueryValueEx(k, "GEMINI_API_KEY")
-                return value or None
-        except OSError:
-            return None
-    return None
 
 
 def load_themen() -> list[str]:
@@ -160,6 +140,46 @@ def build_user_content(job: dict, text: str) -> str:
     return "\n".join(ctx) + f"\n\n--- Dokumenttext (ggf. gekürzt) ---\n{text}"
 
 
+def build_system_prompt(themen: list[str]) -> str:
+    return (
+        "Du bereitest Dokumente des Umwelt-, Verkehrs- und Planungsausschusses (UVPA) "
+        "der Stadt Erlangen für eine Dokumentensuche auf. Die Nutzer sind kommunal-"
+        "politische Beiräte ohne IT-Kenntnisse.\n\n"
+        "Liefere für das Dokument:\n"
+        "1. zusammenfassung: 2-4 Sätze auf Deutsch (bei Niederschriften bis 6). "
+        "Konkret und informativ: Worum geht es, was wird beantragt/beschlossen/mitgeteilt, "
+        "welche Orte oder Projekte sind betroffen. Keine Floskeln wie "
+        "\"Das Dokument behandelt ...\" — direkt zur Sache.\n"
+        "2. themen: 0 bis 4 wirklich zutreffende Themen, ausschließlich aus dieser Liste:\n"
+        + "\n".join(f"- {t}" for t in themen)
+    )
+
+
+def build_response_schema(themen: list[str]) -> dict:
+    """Erwartetes Ausgabeformat — vom neuen Provider als Structured Output zu erzwingen."""
+    return {
+        "type": "object",
+        "properties": {
+            "zusammenfassung": {"type": "string"},
+            "themen": {"type": "array", "items": {"type": "string", "enum": themen}},
+        },
+        "required": ["zusammenfassung", "themen"],
+    }
+
+
+def call_llm(system_prompt: str, content: str, schema: dict, model: str) -> dict:
+    """LLM-Aufruf — Provider wird neu festgelegt.
+
+    Muss ein Dict {"zusammenfassung": str, "themen": list[str]} liefern,
+    validiert gegen `schema`. Die frühere Gemini-Anbindung (GEMINI_API_KEY)
+    wurde auf Wunsch des Projektinhabers entfernt.
+    """
+    raise SystemExit(
+        "Kein LLM-Provider konfiguriert: Die Nutzung des GEMINI_API_KEY wurde "
+        "entfernt. Neuen Provider in call_llm() implementieren."
+    )
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=0, help="max. Anzahl Dokumente")
@@ -178,26 +198,8 @@ def main() -> None:
         print("Nichts zu tun.")
         return
 
-    system_prompt = (
-        "Du bereitest Dokumente des Umwelt-, Verkehrs- und Planungsausschusses (UVPA) "
-        "der Stadt Erlangen für eine Dokumentensuche auf. Die Nutzer sind kommunal-"
-        "politische Beiräte ohne IT-Kenntnisse.\n\n"
-        "Liefere für das Dokument:\n"
-        "1. zusammenfassung: 2-4 Sätze auf Deutsch (bei Niederschriften bis 6). "
-        "Konkret und informativ: Worum geht es, was wird beantragt/beschlossen/mitgeteilt, "
-        "welche Orte oder Projekte sind betroffen. Keine Floskeln wie "
-        "\"Das Dokument behandelt ...\" — direkt zur Sache.\n"
-        "2. themen: 0 bis 4 wirklich zutreffende Themen, ausschließlich aus dieser Liste:\n"
-        + "\n".join(f"- {t}" for t in themen)
-    )
-    response_schema = {
-        "type": "object",
-        "properties": {
-            "zusammenfassung": {"type": "string"},
-            "themen": {"type": "array", "items": {"type": "string", "enum": themen}},
-        },
-        "required": ["zusammenfassung", "themen"],
-    }
+    system_prompt = build_system_prompt(themen)
+    schema = build_response_schema(themen)
 
     print("Extrahiere PDF-Texte …")
     tasks = []
@@ -212,54 +214,18 @@ def main() -> None:
         if (i + 1) % 500 == 0:
             print(f"  … {i + 1}/{len(jobs)}", flush=True)
 
-    est_chars = sum(len(c) for _, c in tasks)
-    est_cost = (est_chars / 4 + len(tasks) * 700) / 1e6 * 0.10 \
-             + len(tasks) * 250 / 1e6 * 0.40
-    print(f"{len(tasks)} Anfragen ({no_text} ohne extrahierbaren Text übersprungen). "
-          f"Geschätzte Kosten: ~{est_cost:.2f} USD ({args.model}).")
+    print(f"{len(tasks)} Anfragen ({no_text} ohne extrahierbaren Text übersprungen).")
 
     if args.dry_run:
         print("Dry-Run — keine API-Aufrufe.")
         return
-
-    api_key = get_api_key()
-    if not api_key:
-        sys.exit("Fehler: GEMINI_API_KEY nicht gefunden (Umgebung + Machine-Ebene geprüft).")
-
-    from google import genai
-    from google.genai import errors as genai_errors
-    from google.genai import types
-
-    client = genai.Client(api_key=api_key)
-    config = types.GenerateContentConfig(
-        system_instruction=system_prompt,
-        response_mime_type="application/json",
-        response_schema=response_schema,
-        max_output_tokens=MAX_OUTPUT_TOKENS,
-        temperature=0.2,
-    )
 
     lock = threading.Lock()
     done = {"ok": 0, "err": 0}
     t0 = time.time()
 
     def process(job: dict, content: str) -> None:
-        for attempt in range(6):
-            try:
-                resp = client.models.generate_content(
-                    model=args.model, contents=content, config=config)
-                data = json.loads(resp.text)
-                break
-            except (json.JSONDecodeError, TypeError):
-                if attempt >= 2:
-                    raise
-                time.sleep(2)
-            except genai_errors.APIError as e:
-                if e.code in (429, 500, 503) and attempt < 5:
-                    time.sleep(15 if e.code == 429 else 2 ** attempt)
-                    continue
-                raise
-
+        data = call_llm(system_prompt, content, schema, args.model)
         out: Path = job["out"]
         out.parent.mkdir(parents=True, exist_ok=True)
         frontmatter = (
@@ -280,6 +246,8 @@ def main() -> None:
                 try:
                     fut.result()
                     done["ok"] += 1
+                except SystemExit:
+                    raise
                 except Exception as exc:
                     done["err"] += 1
                     print(f"  FEHLER {job['rel']}: {type(exc).__name__}: {str(exc)[:120]}",
