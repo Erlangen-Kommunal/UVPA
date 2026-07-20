@@ -251,7 +251,7 @@ function highlight(escapedHtml) {
 // Bytes selbst und zeigen sie als Blob mit PDF-Content-Type im nativen
 // Browser-Viewer — so funktioniert es unabhängig davon, welche Header die
 // Quelle sendet. Nach dem Umzug zur Organisation nur REPO anpassen.
-const REPO = "autotrader/UVPA";
+const REPO = "erlangen-kommunal/UVPA";
 const PDF_SOURCES = [
   (p) => `https://cdn.jsdelivr.net/gh/${REPO}@main/${p}`,
   (p) => `https://raw.githubusercontent.com/${REPO}/main/${p}`,
