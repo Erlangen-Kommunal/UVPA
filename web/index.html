@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>UVPA Erlangen — Dokumentensuche</title>
-  <link rel="stylesheet" href="style.css?v=12">
+  <link rel="stylesheet" href="style.css?v=13">
   <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.34.0/dist/cytoscape.min.js"></script>
 </head>
 <body>
@@ -20,12 +20,20 @@
              placeholder="Passwort" autofocus required>
       <button type="submit">Anmelden</button>
       <p id="gate-error" class="error" hidden>Das Passwort ist leider falsch.</p>
+      <p class="disclaimer">Ehrenamtlich erstellte Anwendung. Es werden ausschließlich
+        öffentlich zugängliche Daten verwendet. Diese Anwendung steht in keiner
+        Verbindung zur Stadt Erlangen.</p>
     </form>
   </div>
 
   <!-- Lade-Status -->
   <div id="boot" class="overlay">
-    <div class="gate-card"><p id="boot-msg">Lade Datenbank …</p></div>
+    <div class="gate-card">
+      <p id="boot-msg">Lade Datenbank …</p>
+      <p class="disclaimer">Ehrenamtlich erstellte Anwendung. Es werden ausschließlich
+        öffentlich zugängliche Daten verwendet. Diese Anwendung steht in keiner
+        Verbindung zur Stadt Erlangen.</p>
+    </div>
   </div>
 
   <header>
@@ -110,6 +118,6 @@
     <span id="version"></span>
   </footer>
 
-  <script type="module" src="app.js?v=12"></script>
+  <script type="module" src="app.js?v=13"></script>
 </body>
 </html>
