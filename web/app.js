@@ -13,7 +13,7 @@ import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1
 // Sichtbare App-Version (Fußzeile). Beim Ausliefern zusammen mit dem
 // ?v=…-Cache-Parameter in index.html erhöhen, damit Version und
 // tatsächlich geladener Code übereinstimmen.
-const APP_VERSION = "v13 · 2026-07-21";
+const APP_VERSION = "v14 · 2026-07-22";
 
 const $ = (id) => document.getElementById(id);
 const status = (msg) => { $("statusbar").textContent = msg; };
@@ -365,6 +365,13 @@ async function openDoc(id) {
   if (!d) return;
   activateTab("doc");
 
+  // Straßen, die der zugehörige TOP nennt — der Ortsbezug des Dokuments.
+  // Sortiert nach Gewicht (Zahl der Dokumente des TOPs, die die Straße nennen).
+  const streets = await q(
+    `SELECT n.label AS name FROM edges e JOIN nodes n ON n.id = e.target
+     WHERE e.source = '${esc(d.node_id)}' AND e.type = 'mentions_strasse'
+     ORDER BY e.weight DESC, n.label LIMIT 20`);
+
   const tc = d.type_code || "AN";
   const html = `<div class="doc-head">
     <h3><span class="badge">${escHtml(tc)}</span>${escHtml(d.title)}</h3>
@@ -372,6 +379,9 @@ async function openDoc(id) {
     <p class="meta">${escHtml(d.top_label)}${d.vorlage_nr ? " · Vorlage " + escHtml(d.vorlage_nr) : ""}</p>
     ${d.summary ? `<p class="doc-summary">${escHtml(d.summary)}</p>` : ""}
     ${d.themen ? `<p class="meta">Themen: ${escHtml(themenText(d.themen))}</p>` : ""}
+    ${streets.length ? `<p class="doc-streets"><span class="lbl">Straßen:</span>` +
+      streets.map((s) => `<button type="button" class="street-chip"
+        data-street="${escHtml(s.name)}">${escHtml(s.name)}</button>`).join("") + `</p>` : ""}
     <div class="doc-actions">
       <button id="btn-text" class="active" type="button">Text</button>
       <button id="btn-pdf" type="button">PDF</button>
@@ -386,6 +396,8 @@ async function openDoc(id) {
   $("doc-view").innerHTML = html;
   renderDocText(d);
   $("btn-context").addEventListener("click", () => focusNode(d.node_id));
+  for (const chip of $("doc-view").querySelectorAll("[data-street]"))
+    chip.addEventListener("click", () => focusStreet(chip.dataset.street));
   $("btn-pdf").addEventListener("click", () => showDocPdf(d));
   $("btn-text").addEventListener("click", () => {
     renderDocText(d);
@@ -614,19 +626,209 @@ async function focusNode(nodeId) {
   cy.animate({ center: { eles: node }, zoom: 1.2, duration: 300 });
 }
 
+// ── Karten-Ansicht (Tempo 30 + Ortsbezug der Dokumente) ──────────────────────
+
+// Amtliche Kartengrundlage des Bundes und der Länder, ohne Schlüssel nutzbar.
+// Graue Variante, damit die Tempo-Linien und nicht der Untergrund dominieren.
+const TILE_URL = "https://sgx.geodatenzentrum.de/wmts_basemapde/tile/1.0.0/" +
+  "de_basemapde_web_raster_grau/default/GLOBAL_WEBMERCATOR/{z}/{y}/{x}.png";
+const TILE_ATTR = '© <a href="https://basemap.de" target="_blank" rel="noopener">basemap.de/BKG</a> · ' +
+  '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende';
+
+// Farbrollen gespiegelt aus style.css (:root). Leaflet braucht die Werte als
+// Zeichenkette; die Begründung der Palette steht dort.
+const ROAD_STYLE = {
+  t30:    { color: "#6da7ec", weight: 2 },
+  t20:    { color: "#2a78d6", weight: 2 },
+  living: { color: "#104281", weight: 2 },
+  cond:   { color: "#eb6834", weight: 2, dashArray: "5 8" },
+};
+const ROAD_LABEL = {
+  t30: "Tempo 30", t20: "Tempo 20",
+  living: "Verkehrsberuhigter Bereich", cond: "Nur zeitweise begrenzt",
+};
+const POI_LABEL = {
+  school: "Schule", kindergarten: "Kindergarten",
+  social: "Soziale Einrichtung", playground: "Spielplatz",
+};
+
+let map = null;
+let roadGeo = null;              // Rohdaten, für den Neuaufbau beim Umschalten des Filters
+let roadLayer = null;
+let streetDocs = new Map();      // Straßenname → Zahl der Dokumente
+const streetLayers = new Map();  // Straßenname → Leaflet-Layer (eine Straße hat viele Abschnitte)
+let onlyDocs = false;
+
+/** Geodatei laden — im Deploy neben der Seite, im lokalen Dev eine Ebene höher. */
+async function loadGeo(name) {
+  for (const url of [`geo/${name}`, `../geo/${name}`]) {
+    try {
+      const r = await fetch(url);
+      if (r.ok) return await r.json();
+    } catch { /* nächster Pfad */ }
+  }
+  return null;
+}
+
+function roadStyle(feature) {
+  const p = feature.properties;
+  const base = ROAD_STYLE[p.cls] ?? ROAD_STYLE.t30;
+  // Straßen mit Ausschussbezug tragen mehr Gewicht — Betonung über die
+  // Strichstärke, nicht über eine weitere Farbe.
+  const has = p.name && streetDocs.has(p.name);
+  return { ...base, weight: has ? base.weight + 2.5 : base.weight,
+           opacity: has ? 0.95 : 0.55 };
+}
+
+function roadPopup(props) {
+  const el = document.createElement("div");
+  el.className = "map-pop";
+  const name = props.name;
+  const count = name ? streetDocs.get(name) ?? 0 : 0;
+  el.innerHTML = `
+    <strong>${escHtml(name ?? "Straße ohne Namen")}</strong>
+    <div class="mp-meta">${escHtml(ROAD_LABEL[props.cls] ?? props.cls)}${
+      props.cond ? ` · ${escHtml(props.cond)}` : ""}</div>
+    ${name ? `<button type="button"${count ? "" : " disabled"}>${
+      count ? `${count} Dokument${count === 1 ? "" : "e"} anzeigen`
+            : "Keine Ausschussdokumente"}</button>` : ""}`;
+  el.querySelector("button:not([disabled])")
+    ?.addEventListener("click", () => openStreet(name));
+  return el;
+}
+
+function buildRoadLayer() {
+  if (roadLayer) map.removeLayer(roadLayer);
+  streetLayers.clear();
+  roadLayer = L.geoJSON(roadGeo, {
+    filter: (f) => !onlyDocs || (f.properties.name && streetDocs.has(f.properties.name)),
+    style: roadStyle,
+    onEachFeature: (f, layer) => {
+      layer.bindPopup(() => roadPopup(f.properties));
+      const name = f.properties.name;
+      if (name) {
+        const list = streetLayers.get(name);
+        if (list) list.push(layer);
+        else streetLayers.set(name, [layer]);
+      }
+    },
+  }).addTo(map);
+}
+
+async function initMap() {
+  if (typeof L === "undefined") {
+    $("map").innerHTML = '<p class="hint" style="padding:1rem">Die Kartenbibliothek ' +
+      "konnte nicht geladen werden (keine Verbindung zum CDN).</p>";
+    return;
+  }
+  // preferCanvas: gut 3.000 Linienzüge als SVG-Elemente würden das Layout
+  // spürbar bremsen — auf Canvas gezeichnet bleibt die Karte flüssig.
+  map = L.map("map", { center: [49.5897, 11.0040], zoom: 13, preferCanvas: true,
+                       maxBounds: [[49.45, 10.80], [49.72, 11.22]], minZoom: 11 });
+  L.tileLayer(TILE_URL, { maxZoom: 19, attribution: TILE_ATTR }).addTo(map);
+
+  status("Lade Geodaten …");
+  try {
+    streetDocs = new Map((await q(
+      "SELECT name, doc_count FROM streets WHERE doc_count > 0")).map(
+        (r) => [r.name, r.doc_count]));
+  } catch { /* ältere graph.db ohne streets-Tabelle — Karte bleibt ohne Betonung */ }
+
+  const [roads, pois] = await Promise.all([
+    loadGeo("tempo30.geojson"), loadGeo("einrichtungen.geojson")]);
+  if (!roads) {
+    status("Geodaten nicht gefunden — tools/fetch_geodata.py erzeugt geo/tempo30.geojson.");
+    return;
+  }
+
+  roadGeo = roads;
+  buildRoadLayer();
+
+  if (pois) {
+    const poiLayer = L.geoJSON(pois, {
+      pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+        radius: 3, fillColor: "#52514e", fillOpacity: 0.75,
+        color: "#fcfcfb", weight: 1,   // heller Ring: trennt überlappende Punkte
+      }),
+      onEachFeature: (f, layer) => layer.bindPopup(
+        `<div class="map-pop"><strong>${escHtml(f.properties.name ?? "")}</strong>` +
+        `<div class="mp-meta">${escHtml(POI_LABEL[f.properties.kind] ?? "")}</div></div>`),
+    });
+    // Über der ganzen Stadt sind 500 Punkte eine Nebelwand und verdecken das
+    // Straßennetz, um das es geht. Sie erscheinen erst, wenn man hineinzoomt
+    // und die Nachbarschaft einer einzelnen Einrichtung beurteilen kann.
+    const POI_MIN_ZOOM = 14;
+    const syncPois = () => {
+      const show = map.getZoom() >= POI_MIN_ZOOM;
+      if (show && !map.hasLayer(poiLayer)) map.addLayer(poiLayer);
+      else if (!show && map.hasLayer(poiLayer)) map.removeLayer(poiLayer);
+    };
+    map.on("zoomend", syncPois);
+    syncPois();
+  }
+
+  $("map-only-docs").addEventListener("change", (ev) => {
+    onlyDocs = ev.target.checked;
+    buildRoadLayer();
+    status(onlyDocs ? "Karte zeigt nur Straßen mit Ausschussdokumenten."
+                    : "Karte zeigt das gesamte Tempo-30-Netz.");
+  });
+
+  status(`Karte: ${roads.features.length} Straßenabschnitte, ` +
+         `${pois ? pois.features.length : 0} Einrichtungen, ` +
+         `${streetDocs.size} Straßen mit Ausschussdokumenten.`);
+}
+
+/** Alle Dokumente, die eine bestimmte Straße nennen — in die Trefferliste. */
+async function openStreet(name) {
+  // Über document_streets, nicht über die TOP-Kanten: ein Tagesordnungspunkt
+  // hat oft viele Anlagen, von denen nur eine die Straße wirklich nennt.
+  const rows = await q(
+    `SELECT d.id, 'doc' AS kind, d.title, d.type_code, d.node_id, d.pages,
+            d.summary, n.label AS top_label, n.date::VARCHAR AS date, n.vorlage_nr
+     FROM document_streets ds
+     JOIN documents d ON d.id = ds.doc_id
+     JOIN nodes n ON n.id = d.node_id
+     WHERE ds.street = '${esc(name)}'
+     ORDER BY n.date DESC, d.title LIMIT 300`);
+  showResultList();
+  renderResults(rows, `Dokumente: ${name}`);
+  status(`${rows.length} Dokument(e) nennen „${name}“.`);
+}
+
+/** Von einem Straßen-Chip in der Dokumentansicht auf die Karte springen. */
+async function focusStreet(name) {
+  await activateTab("map");
+  const layers = streetLayers.get(name);
+  if (!layers?.length) {
+    status(`„${name}“ liegt nicht im Tempo-30-Netz — auf der Karte sind nur ` +
+           "Straßen mit Tempo 30/20, verkehrsberuhigte Bereiche und zeitliche Begrenzungen.");
+    return;
+  }
+  const bounds = layers.reduce((b, l) => b.extend(l.getBounds()), L.latLngBounds(
+    layers[0].getBounds()));
+  map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 });
+  layers[0].openPopup();
+  status(`„${name}“ auf der Karte.`);
+}
+
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 
-function activateTab(which) {
-  const isDoc = which === "doc";
-  $("tab-doc").classList.toggle("active", isDoc);
-  $("tab-net").classList.toggle("active", !isDoc);
-  $("panel-doc").hidden = !isDoc;
-  $("panel-net").hidden = isDoc;
+const TABS = ["doc", "net", "map"];
+
+async function activateTab(which) {
+  for (const t of TABS) {
+    $(`tab-${t}`).classList.toggle("active", t === which);
+    $(`panel-${t}`).hidden = t !== which;
+  }
   // Auf Mobil den Viewer in den Vordergrund holen (Liste weicht).
   document.body.classList.add("show-viewer");
-  if (!isDoc) {
+  if (which === "net") {
     if (!cy) { initCy(); showOverview(); }
     else cy.resize();
+  } else if (which === "map") {
+    if (!map) await initMap();
+    else map.invalidateSize();
   }
 }
 
@@ -680,8 +882,8 @@ try {
   });
   for (const id of ["f-thema", "f-antrag", "f-year", "f-type", "f-ort", "f-sort"])
     $(id).addEventListener("change", () => { showResultList(); runSearch(); });
-  $("tab-doc").addEventListener("click", () => activateTab("doc"));
-  $("tab-net").addEventListener("click", () => activateTab("net"));
+  for (const t of TABS)
+    $(`tab-${t}`).addEventListener("click", () => activateTab(t));
   $("mobile-back").addEventListener("click", showResultList);
 
   await runSearch();   // Startansicht: neueste Dokumente

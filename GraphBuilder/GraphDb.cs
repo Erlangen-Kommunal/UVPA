@@ -22,6 +22,13 @@ public sealed record PlanRow(
 public sealed record PlanFileRow(
     string PlanId, string Titel, string? Path, string? QuelleUrl, int Pages, string? Text);
 
+/// <summary>Amtliches Straßenverzeichnis + Zahl der Dokumente, die die Straße nennen.</summary>
+public sealed record StreetRow(
+    string Name, string Schluessel, string Bezirke, int DocCount);
+
+/// <summary>Ein einzelnes Dokument nennt eine Straße (Grundlage des Kartenklicks).</summary>
+public sealed record DocStreetRow(string DocId, string Street);
+
 /// <summary>Kapselt Schema, Bulk-Inserts (Appender) und FTS-Aufbau der graph.db.</summary>
 public sealed class GraphDb : IDisposable
 {
@@ -38,8 +45,8 @@ public sealed class GraphDb : IDisposable
     public void CreateSchema() => Execute(
         """
         CREATE TABLE nodes (
-            id         VARCHAR PRIMARY KEY,  -- 's:2020-05-19', 't:5046107', 'v:611/327/2020', 'o:Büchenbach', 'b:472', 'p:vep', 'r:baumschutzverordnung'
-            type       VARCHAR NOT NULL,     -- session | top | vorlage | ort | bplan | plan | recht
+            id         VARCHAR PRIMARY KEY,  -- 's:2020-05-19', 't:5046107', 'v:611/327/2020', 'o:Büchenbach', 'b:472', 'p:vep', 'r:baumschutzverordnung', 'st:Henkestraße'
+            type       VARCHAR NOT NULL,     -- session | top | vorlage | ort | bplan | plan | recht | strasse
             label      VARCHAR NOT NULL,
             date       DATE,                 -- Sitzungsdatum (nur session/top) bzw. Erstelldatum (plan/recht)
             top_nr     VARCHAR,
@@ -51,7 +58,7 @@ public sealed class GraphDb : IDisposable
         CREATE TABLE edges (
             source VARCHAR NOT NULL,
             target VARCHAR NOT NULL,
-            type   VARCHAR NOT NULL,          -- in_session | has_vorlage | references_vorlage | mentions_ort | mentions_bplan | thread | relates_to_plan | relates_to_recht
+            type   VARCHAR NOT NULL,          -- in_session | has_vorlage | references_vorlage | mentions_ort | mentions_bplan | mentions_strasse | thread | relates_to_plan | relates_to_recht
             weight INTEGER NOT NULL DEFAULT 1
         );
 
@@ -85,6 +92,21 @@ public sealed class GraphDb : IDisposable
             quelle_url VARCHAR,
             pages      INTEGER,
             text       VARCHAR                 -- extrahierter Volltext, für FTS mitindiziert
+        );
+
+        CREATE TABLE streets (
+            name       VARCHAR PRIMARY KEY,    -- amtliche Schreibweise, identisch zum OSM-Namen auf der Karte
+            schluessel VARCHAR,                -- Straßenschlüssel der Stadt ('0005')
+            bezirke    VARCHAR,                -- '|'-getrennt, z. B. '20 Burgberg|21 Meilwald'
+            doc_count  INTEGER                 -- Dokumente, die die Straße nennen (Briefköpfe zählen nicht)
+        );
+
+        -- Welches Dokument nennt welche Straße. Getrennt von den TOP-Kanten in
+        -- 'edges': ein Tagesordnungspunkt hat oft ein Dutzend Anlagen, von denen
+        -- nur eine die Straße erwähnt — für den Kartenklick zählt das Dokument.
+        CREATE TABLE document_streets (
+            doc_id VARCHAR NOT NULL,           -- documents.id
+            street VARCHAR NOT NULL            -- streets.name
         );
         """);
 
@@ -144,6 +166,24 @@ public sealed class GraphDb : IDisposable
             row.AppendValue(f.PlanId).AppendValue(f.Titel).AppendValue(f.Path)
                .AppendValue(f.QuelleUrl).AppendValue(f.Pages).AppendValue(f.Text).EndRow();
         }
+    }
+
+    public void InsertStreets(IEnumerable<StreetRow> streets)
+    {
+        using var appender = _conn.CreateAppender("streets");
+        foreach (var s in streets)
+        {
+            var row = appender.CreateRow();
+            row.AppendValue(s.Name).AppendValue(s.Schluessel)
+               .AppendValue(s.Bezirke).AppendValue(s.DocCount).EndRow();
+        }
+    }
+
+    public void InsertDocumentStreets(IEnumerable<DocStreetRow> rows)
+    {
+        using var appender = _conn.CreateAppender("document_streets");
+        foreach (var r in rows)
+            appender.CreateRow().AppendValue(r.DocId).AppendValue(r.Street).EndRow();
     }
 
     /// <summary>

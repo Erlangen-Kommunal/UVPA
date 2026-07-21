@@ -1,0 +1,28 @@
+{
+  "osm": {
+    "abgerufen": "2026-07-21T23:50:46+0200",
+    "quelle": "OpenStreetMap über Overpass-API",
+    "lizenz": "ODbL, © OpenStreetMap-Mitwirkende",
+    "wege": 3127,
+    "einrichtungen": 504,
+    "klassen": {
+      "t30": 2611,
+      "living": 352,
+      "cond": 50,
+      "t20": 114,
+      "kindergarten": 98,
+      "social": 57,
+      "playground": 291,
+      "school": 58
+    }
+  },
+  "amtlich": {
+    "abgerufen": "2026-07-21T23:50:47+0200",
+    "stand": "2025-10-20",
+    "quelle": "Stadt Erlangen, Statistik und Stadtforschung (Open Data)",
+    "quelle_url": "https://erlangen.de/uwao-api/faila/files/bypath/Dokumente/Statistik/Statistik%20Open%20Data/bezirke_strassenabschnitte_2025.10.xlsx",
+    "lizenz": "Datenlizenz Deutschland Namensnennung 2.0 (dl-de/by-2.0)",
+    "strassen": 914,
+    "bezirke": 39
+  }
+}

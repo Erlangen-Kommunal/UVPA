@@ -44,6 +44,14 @@ jobs:
       - name: Sync documents from Ratsinfo (no LLM)
         run: python uvp_agent.py --sync
 
+      # Geodaten für den Karten-Tab: OpenStreetMap (Tempo-30-Netz, Einrichtungen)
+      # und das amtliche Straßenverzeichnis der Stadt. Nur Standardbibliothek,
+      # keine pip-Abhängigkeit. Fällt der Abruf aus (Overpass überlastet), bleiben
+      # die vorhandenen Dateien im Repo stehen — der Sync selbst soll nicht scheitern.
+      - name: Refresh geodata (OpenStreetMap + Open Data Erlangen)
+        continue-on-error: true
+        run: python tools/fetch_geodata.py
+
       - name: Commit new documents
         run: |
           git config user.name "github-actions[bot]"

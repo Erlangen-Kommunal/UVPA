@@ -48,6 +48,13 @@ if (limit > 0)
 Console.WriteLine($"GraphBuilder — {sessions.Count} Sitzungen aus {indexFile}");
 var sw = Stopwatch.StartNew();
 
+// Amtliches Straßenverzeichnis (geo/strassen.json, aus tools/fetch_geodata.py).
+// Fehlt es, entfallen Straßenknoten und Kartenverknüpfung — der Rest baut normal.
+var streetIndex = StreetIndex.Load(repoRoot);
+if (streetIndex is not null)
+    Console.WriteLine($"Straßenverzeichnis: {streetIndex.Streets.Count} Straßen " +
+                      $"(Stand {streetIndex.Stand}).");
+
 // ── Phase 1: Struktur aus index.json → Knoten, Kanten, Dokument-Jobs ─────────
 
 var nodes = new Dictionary<string, NodeRow>();
@@ -138,6 +145,25 @@ if (extractText)
 // Pro TOP: Fundstellen zählen (Titel + jedes Dokument = 1 Zählung → Kantengewicht)
 var topEntityCounts = new Dictionary<string, Dictionary<Entity, int>>();
 
+// Dasselbe für Straßen. Gezählt wird je Dokument einmal, nicht je Fundstelle:
+// Pläne wiederholen einen Straßennamen in der Beschriftung hundertfach, das
+// sagt nichts über die Bedeutung des Bezugs aus.
+var topStreetCounts = new Dictionary<string, Dictionary<string, int>>();
+var streetDocCounts = new Dictionary<string, int>();
+var docStreetRows = new List<DocStreetRow>();
+
+void AddStreetCounts(string topId, IEnumerable<string> streets)
+{
+    Dictionary<string, int>? counts = null;
+    foreach (var name in streets)
+    {
+        counts ??= topStreetCounts.TryGetValue(topId, out var c)
+            ? c
+            : topStreetCounts[topId] = [];
+        counts[name] = counts.GetValueOrDefault(name) + 1;
+    }
+}
+
 void CountEntities(string topId, string text, string? ownVorlage)
 {
     var found = EntityExtractor.Extract(text);
@@ -202,11 +228,25 @@ foreach (var (row, absPath, ownerTopId) in docRows)
         Themen = themen,
     });
 
+    // Straßen einmal je Dokument suchen; das Ergebnis speist beides — die
+    // Zuordnung Dokument↔Straße (Kartenklick) und die TOP-Kanten (Netzwerk).
+    // Auch Sitzungsdokumente ohne TOP (Einladung, Niederschrift) werden
+    // zugeordnet: gerade Niederschriften nennen viele Straßen.
+    var streetsInDoc = streetIndex is not null && text.Length > 0
+        ? streetIndex.Find(text)
+        : [];
+    foreach (var name in streetsInDoc)
+    {
+        docStreetRows.Add(new DocStreetRow(row.Id, name));
+        streetDocCounts[name] = streetDocCounts.GetValueOrDefault(name) + 1;
+    }
+
     if (ownerTopId.Length > 0 && text.Length > 0)
     {
         var ownVorlage = nodes[ownerTopId].VorlageNr is { Length: > 0 } v
             ? EntityExtractor.NormalizeVorlage(v) : null;
         CountEntities(ownerTopId, text, ownVorlage);
+        AddStreetCounts(ownerTopId, streetsInDoc);
     }
 }
 
@@ -215,6 +255,9 @@ foreach (var node in nodes.Values.Where(n => n.Type == "top").ToList())
     var ownVorlage = node.VorlageNr is { Length: > 0 } v
         ? EntityExtractor.NormalizeVorlage(v) : null;
     CountEntities(node.Id, node.Label, ownVorlage);
+    // TOP-Titel speisen nur das Netzwerk — doc_count bleibt strikt dokumentbasiert.
+    if (streetIndex is not null)
+        AddStreetCounts(node.Id, streetIndex.Find(node.Label));
 }
 
 foreach (var (topId, counts) in topEntityCounts)
@@ -232,6 +275,29 @@ foreach (var (topId, counts) in topEntityCounts)
             entity.Type == "vorlage" ? entity.Key : null, null));
         edges.Add(new EdgeRow(topId, entityId, edgeType, weight));
     }
+}
+
+// Straßen werden zu eigenen Knoten: sie tragen die Karte (Klick auf eine
+// Straße → die Dokumente, die sie behandeln) und den Ortsbezug im Netzwerk.
+var streetRows = new List<StreetRow>();
+if (streetIndex is not null)
+{
+    foreach (var (topId, counts) in topStreetCounts)
+    {
+        foreach (var (name, weight) in counts)
+        {
+            var id = $"st:{name}";
+            nodes.TryAdd(id, new NodeRow(id, "strasse", name, null, null, null, null));
+            edges.Add(new EdgeRow(topId, id, "mentions_strasse", weight));
+        }
+    }
+    streetRows.AddRange(streetIndex.Streets.Select(s => new StreetRow(
+        s.Name, s.Schluessel,
+        string.Join("|", s.Bezirke.Select(b => b.ToString())),
+        streetDocCounts.GetValueOrDefault(s.Name))));
+    Console.WriteLine($"Straßen: {streetDocCounts.Count} von {streetRows.Count} in Dokumenten " +
+                      $"genannt, {docStreetRows.Count} Zuordnungen Dokument↔Straße, " +
+                      $"{topStreetCounts.Count} TOPs mit Straßenbezug.");
 }
 
 // ── Phase 4: Kuratierte externe Registries einlesen (Pläne, Rechtsvorschriften) ──
@@ -314,6 +380,8 @@ using (var db = new GraphDb(dbPath))
     db.InsertDocuments(finalDocs);
     db.InsertPlans(planRows);
     db.InsertPlanFiles(planFileRows);
+    db.InsertStreets(streetRows);
+    db.InsertDocumentStreets(docStreetRows);
     db.CreateThreadEdges();
     if (extractText)
         db.CreateFtsIndex();
@@ -329,6 +397,8 @@ using (var db = new GraphDb(dbPath))
         $"({db.Count("plan_files pf JOIN plans p ON p.id = pf.plan_id WHERE p.kind = 'plan'")} Dateien)");
     Console.WriteLine($"  Recht:     {db.Count("plans WHERE kind = 'recht'")} " +
         $"({db.Count("plan_files pf JOIN plans p ON p.id = pf.plan_id WHERE p.kind = 'recht'")} Dateien)");
+    Console.WriteLine($"  Straßen:   {db.Count("streets")} " +
+        $"(davon {db.Count("streets WHERE doc_count > 0")} in Dokumenten genannt)");
 }
 
 Console.WriteLine($"Fertig in {sw.Elapsed:mm\\:ss}. " +

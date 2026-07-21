@@ -41,9 +41,12 @@ jobs:
             echo "::error::Secret SITE_PASSWORD ist nicht gesetzt."
             exit 1
           fi
-          mkdir -p _site
+          mkdir -p _site/geo
           cp web/index.html web/style.css web/app.js _site/
           cp graph.db _site/graph.db
+          # Geodaten für den Karten-Tab (aus dem Wochen-Sync im Repo)
+          cp geo/*.geojson geo/meta.json _site/geo/ 2>/dev/null || \
+            echo "::warning::Keine Geodaten in geo/ — der Karten-Tab bleibt leer."
           node tools/make-auth.mjs _site/auth.json
 
       - uses: actions/upload-pages-artifact@v3

@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>UVPA Erlangen — Dokumentensuche</title>
-  <link rel="stylesheet" href="style.css?v=13">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="style.css?v=14">
   <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.34.0/dist/cytoscape.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 
@@ -85,6 +87,7 @@
         <button id="mobile-back" type="button" title="Zurück zur Trefferliste">‹ Liste</button>
         <button id="tab-doc" class="active" type="button">Dokument</button>
         <button id="tab-net" type="button">Netzwerk</button>
+        <button id="tab-map" type="button">Karte</button>
       </nav>
 
       <div id="panel-doc" class="panel">
@@ -94,6 +97,9 @@
           <p class="hint">Das Original-PDF lässt sich jeweils aus dem Ratsinformationssystem
           herunterladen. Der Tab <strong>Netzwerk</strong> zeigt die Beziehungen des Dokuments
           (gleiche Vorlage, Stadtteile, rote Fäden über Sitzungen hinweg).</p>
+          <p class="hint">Der Tab <strong>Karte</strong> zeigt Tempo 30, Tempo 20 und
+          verkehrsberuhigte Bereiche im Stadtgebiet. Ein Klick auf eine Straße listet die
+          Ausschussdokumente auf, die sie behandeln.</p>
         </div>
       </div>
 
@@ -110,6 +116,33 @@
           <span><i class="chip chip-thread"></i>Roter Faden</span>
         </div>
       </div>
+
+      <div id="panel-map" class="panel" hidden>
+        <div id="map"></div>
+        <div id="map-legend">
+          <div class="ml-row">
+            <span><i class="line line-t30"></i>Tempo 30</span>
+            <span><i class="line line-t20"></i>Tempo 20</span>
+            <span><i class="line line-living"></i>Verkehrsberuhigt</span>
+            <span><i class="line line-cond"></i>Nur zeitweise</span>
+            <span><i class="dot dot-poi"></i>Schule, Kita, Spielplatz, soziale Einrichtung
+              <span class="ml-hint">(ab mittlerer Zoomstufe)</span></span>
+          </div>
+          <div class="ml-row">
+            <label><input type="checkbox" id="map-only-docs">
+              Nur Straßen mit Ausschussdokumenten</label>
+            <span class="ml-hint"><i class="line line-hasdoc"></i>Dicke Linie = im Ausschuss
+              behandelt · Klick auf eine Straße zeigt die Dokumente</span>
+          </div>
+          <p class="ml-credit">
+            Straßen und Einrichtungen: © <a href="https://www.openstreetmap.org/copyright"
+              target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (ODbL) ·
+            Straßenverzeichnis und statistische Bezirke: Stadt Erlangen, Statistik und
+            Stadtforschung (dl-de/by-2.0) · Karte: <a href="https://basemap.de"
+              target="_blank" rel="noopener">basemap.de</a>
+          </p>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -118,6 +151,6 @@
     <span id="version"></span>
   </footer>
 
-  <script type="module" src="app.js?v=13"></script>
+  <script type="module" src="app.js?v=14"></script>
 </body>
 </html>
