@@ -108,6 +108,7 @@ main { flex: 1; display: flex; min-height: 0; }
 #results-list li.active { border-color: var(--c-top); box-shadow: 0 0 0 1px var(--c-top) inset; }
 .r-title { font-weight: 600; }
 .r-meta { color: var(--muted); font-size: .74rem; margin-top: .1rem; }
+.r-meta strong { color: var(--ink-2); font-weight: 700; }
 .r-snippet { color: var(--ink-2); font-size: .76rem; margin-top: .25rem; }
 .r-snippet mark, #doc-view mark { background: #ffe9a8; padding: 0 .1em; border-radius: 2px; }
 
@@ -212,7 +213,10 @@ ul.plan-files a:hover { text-decoration: underline; }
 footer {
   padding: .35rem 1rem; font-size: .75rem; color: var(--muted);
   background: var(--surface-1); border-top: 1px solid var(--hairline);
+  display: flex; align-items: baseline; gap: 1rem;
 }
+#statusbar { flex: 1; min-width: 0; }
+#version { flex: none; white-space: nowrap; opacity: .8; }
 
 /* "‹ Liste"-Button nur auf Mobil sichtbar (siehe Media Query) */
 #mobile-back { display: none; }

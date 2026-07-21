@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>UVPA Erlangen — Dokumentensuche</title>
-  <link rel="stylesheet" href="style.css?v=11">
+  <link rel="stylesheet" href="style.css?v=12">
   <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.34.0/dist/cytoscape.min.js"></script>
 </head>
 <body>
@@ -59,6 +59,9 @@
       <select id="f-sort">
         <option value="score">Relevanz</option>
         <option value="date">Datum (neueste zuerst)</option>
+        <option value="date-asc">Datum (älteste zuerst)</option>
+        <option value="title">Titel (A–Z)</option>
+        <option value="title-desc">Titel (Z–A)</option>
       </select>
     </label>
   </div>
@@ -102,8 +105,11 @@
     </section>
   </main>
 
-  <footer id="statusbar">Lade …</footer>
+  <footer>
+    <span id="statusbar">Lade …</span>
+    <span id="version"></span>
+  </footer>
 
-  <script type="module" src="app.js?v=11"></script>
+  <script type="module" src="app.js?v=12"></script>
 </body>
 </html>

@@ -10,6 +10,11 @@
 
 import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/+esm";
 
+// Sichtbare App-Version (Fußzeile). Beim Ausliefern zusammen mit dem
+// ?v=…-Cache-Parameter in index.html erhöhen, damit Version und
+// tatsächlich geladener Code übereinstimmen.
+const APP_VERSION = "v12 · 2026-07-21";
+
 const $ = (id) => document.getElementById(id);
 const status = (msg) => { $("statusbar").textContent = msg; };
 const bootMsg = (msg) => { $("boot-msg").textContent = msg; };
@@ -119,6 +124,28 @@ function filterConds(f) {
   return conds;
 }
 
+/**
+ * ORDER-BY-Klausel für die Dokumentenliste.
+ * withScore=true im Suchmodus (dann ist "Relevanz" = BM25-Score s.score verfügbar);
+ * im Browse-Modus (kein Suchbegriff) fällt "Relevanz" auf Datum zurück.
+ */
+function sortClause(sort, withScore) {
+  // Titelsortierung case-insensitiv (lower) und leserlich: führende Nicht-
+  // Buchstaben (Ziffern, Bindestriche, Aktenzeichen) werden gestrippt, damit
+  // "Antrag …" nicht hinter "- …" oder "00.01 …" einsortiert wird. Titel ohne
+  // jeden Buchstaben (reine Aktenzeichen/Zahlen) wandern ans Ende der A–Z-Liste,
+  // statt Buchstaben-Titel zu verdrängen (hasAlpha = 0 zuletzt bei ASC).
+  const titleKey = "regexp_replace(lower(d.title), '^[^a-zäöüß]+', '')";
+  const hasAlpha = `(${titleKey} != '')`;
+  switch (sort) {
+    case "date":       return "n.date DESC, d.title";
+    case "date-asc":   return "n.date ASC, d.title";
+    case "title":      return `${hasAlpha} DESC, ${titleKey} ASC, d.title ASC`;
+    case "title-desc": return `${hasAlpha} DESC, ${titleKey} DESC, d.title DESC`;
+    default:           return withScore ? "s.score DESC" : "n.date DESC, d.title";
+  }
+}
+
 async function runSearch() {
   const query = $("search-input").value.trim();
   const f = currentFilters();
@@ -138,7 +165,7 @@ async function runSearch() {
   if (query) {
     status(`Suche „${query}“ …`);
     conds.unshift("s.score IS NOT NULL");
-    const order = f.sort === "date" ? "n.date DESC, s.score DESC" : "s.score DESC";
+    const order = sortClause(f.sort, true);
     rows = includeDocs ? await q(
       `SELECT d.id, 'doc' AS kind, d.title, d.type_code, d.node_id, d.pages,
               d.summary, n.label AS top_label, n.date::VARCHAR AS date, n.vorlage_nr, s.score
@@ -189,7 +216,7 @@ async function runSearch() {
       `SELECT d.id, 'doc' AS kind, d.title, d.type_code, d.node_id, d.pages,
               d.summary, n.label AS top_label, n.date::VARCHAR AS date, n.vorlage_nr
        FROM documents d JOIN nodes n ON n.id = d.node_id
-       ${where} ORDER BY n.date DESC, d.title LIMIT 50`);
+       ${where} ORDER BY ${sortClause(f.sort, false)} LIMIT 50`);
     renderResults(rows, conds.length ? `${rows.length} Dokumente (gefiltert)` : "Neueste Dokumente");
     status(`${rows.length} Dokumente angezeigt.`);
   }
@@ -208,13 +235,13 @@ function renderResults(rows, title) {
       <li data-kind="planfile" data-file="${escHtml(r.id)}" data-plan-title="${escHtml(r.top_label)}"
           data-badge="${badge}" data-plan-id="${escHtml(r.plan_id)}">
         <div class="r-title"><span class="badge badge-plan">${badge}</span>${escHtml(r.title)}</div>
-        <div class="r-meta">${escHtml(r.top_label ?? "")}${r.themen ? " · " + escHtml(themenText(r.themen)) : ""}${r.score != null ? ` · Score ${r.score.toFixed(2)}` : ""}</div>
+        <div class="r-meta">${escHtml(r.top_label ?? "")}${r.themen ? " · " + escHtml(themenText(r.themen)) : ""}${r.score != null ? ` · <strong>Score ${r.score.toFixed(2)}</strong>` : ""}</div>
       </li>`;
     return `
       <li data-kind="doc" data-doc="${escHtml(r.id)}">
         <div class="r-title"><span class="badge">${escHtml(r.type_code || "AN")}</span>${escHtml(r.title)}</div>
         <div class="r-meta">${r.date ?? ""}${r.vorlage_nr ? " · " + escHtml(r.vorlage_nr) : ""}
-          · ${escHtml(shortLabel(r.top_label ?? "", 55))}${r.score != null ? ` · Score ${r.score.toFixed(2)}` : ""}</div>
+          · ${escHtml(shortLabel(r.top_label ?? "", 55))}${r.score != null ? ` · <strong>Score ${r.score.toFixed(2)}</strong>` : ""}</div>
         ${r.snippet ? `<div class="r-snippet">… ${highlight(escHtml(r.snippet))} …</div>`
           : r.summary ? `<div class="r-snippet">${escHtml(shortLabel(r.summary, 200))}</div>` : ""}
       </li>`;
@@ -636,6 +663,8 @@ async function populateFilters() {
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
+
+$("version").textContent = APP_VERSION;
 
 try {
   await checkAuth();
