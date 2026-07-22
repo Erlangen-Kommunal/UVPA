@@ -37,6 +37,8 @@ import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 
+import amtliche_geometrie as geom
+
 # Overpass-Spiegel: der erste, der antwortet, gewinnt. Der Hauptserver
 # quittiert Lastspitzen mit 504/429 — dann ist der nächste dran.
 OVERPASS_MIRRORS = [
@@ -50,6 +52,52 @@ OVERPASS_MIRRORS = [
 # https://erlangen.de/aktuelles/opendata).
 AMT_URL = ("https://erlangen.de/uwao-api/faila/files/bypath/Dokumente/Statistik/"
            "Statistik%20Open%20Data/bezirke_strassenabschnitte_2025.10.xlsx")
+
+# Gebiete der Orts- und Stadtteilbeiräte (Esri-Shapefile, DHDN/Gauß-Krüger 4).
+# Einzige amtliche Definition dieser Gebiete — die Stadt veröffentlicht sie
+# nirgends in Textform, und die Satzung (140.00) nennt nur die Namen.
+BEIRAT_URL = ("https://erlangen.de/uwao-api/faila/files/bypath/Dokumente/Statistik/"
+              "Statistik%20Open%20Data/Elangen_2015_Vektorgeometrie_"
+              "Stadtteilbeiratsgebiete.zip")
+
+# Die Geometriedatei stammt von 2015 und trägt Arbeitsnamen: die
+# Stadtteilbeiräte wurden erst am 27.07.2016 beschlossen und 2017
+# konstituiert. Die Zuordnung auf die heutigen Namen nach § 1 der Satzung
+# über Orts- und Stadtteilbeiräte (i. d. F. vom 20.02.2020):
+#
+#   * Die sieben Ortsbeiräte tragen schon 2015 ihre heutigen Namen.
+#   * SB West enthält die Bezirke 76/77/78 Büchenbach -> Büchenbach.
+#   * SB Regnitz enthält 10 Heiligenloh, 11 Alterlangen, 12 Steinforst
+#     -> Alterlangen.
+#   * SB Tal/Anger/Bruck enthält 40 Anger -> Anger/Bruck.
+#   * SB Zentrum/Nord enthält 01 Altstadt, 02 Markgrafenstadt,
+#     03 Rathausplatz -> Innenstadt.
+#   * SB Süd-Ost enthält 30 Röthelheim, 32 Sebaldus, 41 Rathenau — genau die
+#     Bezirke, die auch außerhalb der Stadtverwaltung dem Stadtteilbeirat Süd
+#     zugeschrieben werden -> Süd.
+#   * SB Ost heißt unverändert Ost.
+BEIRAT_NAMEN = {
+    "SB Zentrum/Nord": "Stadtteilbeirat Innenstadt",
+    "SB Regnitz": "Stadtteilbeirat Alterlangen",
+    "SB Ost": "Stadtteilbeirat Ost",
+    "SB Süd-Ost": "Stadtteilbeirat Süd",
+    "SB Südost": "Stadtteilbeirat Süd",
+    "SB Tal/Anger/Bruck": "Stadtteilbeirat Anger/Bruck",
+    "SB West": "Stadtteilbeirat Büchenbach",
+    "OB Eltersdorf": "Ortsbeirat Eltersdorf",
+    "OB Frauenaurach": "Ortsbeirat Frauenaurach",
+    "OB Dechsendorf": "Ortsbeirat Dechsendorf",
+    "OB Hüttendorf": "Ortsbeirat Hüttendorf",
+    "OB Kriegenbrunn": "Ortsbeirat Kriegenbrunn",
+    "OB Tennenlohe": "Ortsbeirat Tennenlohe",
+    "OB Kosbach/Häusling/Steudach": "Ortsbeirat Kosbach/Häusling/Steudach",
+}
+
+# Ab diesem Anteil gilt eine Straße als (auch) in einem Beirat liegend.
+# Straßen auf einer Beiratsgrenze gehören zu beiden — die Kurt-Schumacher-
+# Straße liegt zu 52 % in Süd und zu 48 % in Ost, und wer nach Ost filtert,
+# will sie sehen.
+BEIRAT_MIN_ANTEIL = 0.15
 
 UA = "UVPA-Erlangen/1.0 (ehrenamtliches Dokumentenportal; +https://erlangen-kommunal.github.io/UVPA/)"
 
@@ -266,6 +314,84 @@ def parse_amt(blob: bytes) -> dict:
     }
 
 
+# ── Beiratsgebiete ───────────────────────────────────────────────────────────
+
+# Alle benannten Straßen im Stadtgebiet. Diese Geometrie wird nur zur
+# Zuordnung gebraucht und deshalb nicht abgelegt — im Repo landet allein das
+# Ergebnis (Straße → Beirat).
+NAMED_ROADS_QUERY = """
+[out:json][timeout:180][bbox:49.52,10.92,49.65,11.10];
+way["highway"]["name"];
+out geom;
+"""
+
+
+def fetch_beiraete(out: Path) -> dict:
+    """Beiratsgebiete umrechnen, als GeoJSON ablegen, Straßen zuordnen."""
+    shapes, attrs = geom.load_zip(http_get(BEIRAT_URL))
+
+    gebiete, features = [], []
+    for rings_gk, attr in zip(shapes, attrs):
+        roh = norm(attr.get("NAME", ""))
+        name = BEIRAT_NAMEN.get(roh)
+        if name is None:
+            log(f"  Warnung: unbekanntes Beiratsgebiet „{roh}“ — bleibt unbenannt.")
+            name = roh
+        rings = [[[round(v, PRECISION) for v in geom.gk4_to_wgs84(x, y)]
+                  for x, y in ring] for ring in rings_gk]
+        gebiete.append((name, rings, geom.bbox(rings)))
+        features.append({
+            "type": "Feature",
+            "properties": {"name": name, "name_2015": roh, "nummer": attr.get("NUMMER", "")},
+            "geometry": {"type": "Polygon", "coordinates": rings},
+        })
+    write_json(out / "beiraete.geojson",
+               {"type": "FeatureCollection", "features": features}, compact=True)
+
+    def finde(lon: float, lat: float) -> str | None:
+        for name, rings, (x0, y0, x1, y1) in gebiete:
+            if x0 <= lon <= x1 and y0 <= lat <= y1 and geom.contains(rings, lon, lat):
+                return name
+        return None
+
+    log("  Straßengeometrie für die Zuordnung …")
+    roads = overpass(NAMED_ROADS_QUERY)
+    treffer: dict[str, dict[str, int]] = {}
+    for el in roads.get("elements", []):
+        name = el.get("tags", {}).get("name")
+        line = el.get("geometry")
+        if not name or not line:
+            continue
+        # bis zu acht Stützpunkte je Weg: genug, um eine Straße zu erfassen,
+        # die über eine Beiratsgrenze läuft, ohne jeden Knoten zu prüfen
+        step = max(1, len(line) // 8)
+        counts = treffer.setdefault(name, {})
+        for p in line[::step]:
+            b = finde(p["lon"], p["lat"])
+            if b:
+                counts[b] = counts.get(b, 0) + 1
+    return {"gebiete": [g[0] for g in gebiete], "treffer": treffer}
+
+
+def apply_beiraete(amt: dict, treffer: dict[str, dict[str, int]]) -> dict[str, int]:
+    """Schreibt beirat/beiraete in jede Straße des amtlichen Verzeichnisses."""
+    stats = {"eindeutig": 0, "mehrere": 0, "ohne": 0}
+    for s in amt["strassen"]:
+        counts = treffer.get(s["name"]) or {}
+        total = sum(counts.values())
+        if not total:
+            stats["ohne"] += 1
+            continue
+        anteile = {b: n / total for b, n in counts.items()}
+        top = max(anteile, key=anteile.get)
+        s["beirat"] = top
+        s["beiraete"] = sorted((b for b, a in anteile.items() if a >= BEIRAT_MIN_ANTEIL),
+                               key=lambda b: -anteile[b])
+        s["beirat_anteil"] = round(anteile[top], 3)
+        stats["eindeutig" if len(s["beiraete"]) == 1 else "mehrere"] += 1
+    return stats
+
+
 # ── Hauptlauf ────────────────────────────────────────────────────────────────
 
 def write_json(path: Path, data, compact: bool) -> None:
@@ -285,6 +411,8 @@ def main() -> int:
     ap.add_argument("--skip-osm", action="store_true", help="OpenStreetMap-Abruf auslassen")
     ap.add_argument("--skip-amt", action="store_true",
                     help="Amtliches Straßenverzeichnis nicht neu laden")
+    ap.add_argument("--skip-beirat", action="store_true",
+                    help="Beiratsgebiete und Straßenzuordnung auslassen")
     args = ap.parse_args()
 
     out = Path(args.out)
@@ -321,6 +449,25 @@ def main() -> int:
     if not args.skip_amt:
         log("Stadt Erlangen: Statistische Bezirke nach Straßenabschnitten …")
         amt = parse_amt(http_get(AMT_URL))
+
+        if not args.skip_beirat:
+            log("Stadt Erlangen: Gebiete der Orts- und Stadtteilbeiräte …")
+            bei = fetch_beiraete(out)
+            stats = apply_beiraete(amt, bei["treffer"])
+            amt["beiraete"] = bei["gebiete"]
+            meta["beiraete"] = {
+                "abgerufen": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                "quelle": "Stadt Erlangen, Statistik und Stadtforschung (Open Data)",
+                "quelle_url": BEIRAT_URL,
+                "lizenz": "Datenlizenz Deutschland Namensnennung 2.0 (dl-de/by-2.0)",
+                "stand_geometrie": "2015",
+                "namen_nach": "Satzung über Orts- und Stadtteilbeiräte, Fassung vom 20.02.2020",
+                "gebiete": len(bei["gebiete"]),
+                "zuordnung": stats,
+            }
+            log(f"  {len(bei['gebiete'])} Gebiete · Straßen: {stats['eindeutig']} eindeutig, "
+                f"{stats['mehrere']} über eine Grenze, {stats['ohne']} ohne Geometrie")
+
         write_json(out / "strassen.json", amt, compact=False)
         meta["amtlich"] = {
             "abgerufen": time.strftime("%Y-%m-%dT%H:%M:%S%z"),

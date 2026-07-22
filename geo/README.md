@@ -70,14 +70,55 @@ Die Zuordnung Straße → statistischer Bezirk gilt **abschnittsweise nach
 Hausnummern**; eine lange Straße kann in mehreren Bezirken liegen (Feld
 `bezirke`). Das Verzeichnis führt nur Straßen mit Hausnummern.
 
+## Beiratsgebiete — wie die Zuordnung zustande kommt
+
+`beiraete.geojson` enthält die Gebiete der 7 Orts- und 6 Stadtteilbeiräte,
+jede Straße in `strassen.json` trägt `beirat` (größter Anteil) und `beiraete`
+(alle mit mindestens 15 % Anteil).
+
+**Die Quellenlage ist unbequem und das sollte man wissen:**
+
+Die Satzung über Orts- und Stadtteilbeiräte (140.00, Fassung vom 20.02.2020)
+nennt in § 1 nur die *Namen* — „Für die Stadtteile Innenstadt, Alterlangen,
+Ost, Süd, Anger/Bruck und Büchenbach besteht je ein Stadtteilbeirat" — und
+keine Grenzen. Auch auf erlangen.de steht keine Gebietsbeschreibung. Die
+einzige amtliche Geometrie ist das Open-Data-Shapefile **von 2015**, und das
+trägt Arbeitsnamen (`SB Zentrum/Nord`, `SB West`, `SB Regnitz`, `SB Süd-Ost`),
+weil die Stadtteilbeiräte erst am 27.07.2016 beschlossen wurden.
+
+Die Übersetzung dieser Arbeitsnamen auf die heutigen steht in
+`tools/fetch_geodata.py` (`BEIRAT_NAMEN`) und ist dort einzeln begründet.
+Vier Zuordnungen sind durch den Inhalt erzwungen (SB West enthält die
+Büchenbach-Bezirke, SB Regnitz die Alterlangen-Bezirke, …), `SB Süd-Ost` →
+Süd ist zusätzlich extern bestätigt (Rathenau, Röthelheim, Sebaldus).
+
+**Belege für die Umrechnung und die Zuordnung** — beides wurde gegen
+unabhängige Quellen geprüft, nicht nur plausibel gemacht:
+
+| Prüfung | Ergebnis |
+|---|---|
+| Umgerechnete Bezirksgrenzen vs. amtliches Straßenverzeichnis (über OSM-Geometrie) | 87,5 % exakt gleicher Bezirk, 0,5 % Nachbarbezirk, Rest außerhalb der bebauten Bezirke |
+| Verschnitt Bezirke × Beiratsgebiete, geprüft an den eindeutig benannten Ortsbeiräten | 7 von 7 zu 100 % korrekt (Bezirk 50 → OB Eltersdorf usw.) |
+| Straße → Beirat, geometrisch vs. über den statistischen Bezirk | 99,2 % gleich; alle 7 Abweichungen in den drei Bezirken, die über eine Beiratsgrenze reichen |
+
+**Die Zuordnung ist nicht überall eindeutig, und das ist keine Schwäche der
+Methode, sondern die Wirklichkeit:** 37 Straßen verlaufen entlang einer
+Gebietsgrenze (die Kurt-Schumacher-Straße liegt zu 52 % in Süd und zu 48 % in
+Ost). Solche Straßen stehen in `beiraete` unter allen betroffenen Beiräten —
+wer nach „Ost" filtert, soll sie sehen. Drei statistische Bezirke (04 Tal,
+25 Stubenloh, 43 Forschungszentrum) liegen quer über Beiratsgrenzen; deshalb
+läuft die Zuordnung über die Straßengeometrie und nicht über den Bezirk.
+
+Stand: 871 Straßen eindeutig, 37 über eine Grenze, 6 ohne OSM-Geometrie.
+
 ## Offen
 
-- **Beiratsgebiete.** Die Stadt veröffentlicht die Gebiete der 7 Orts- und
-  6 Stadtteilbeiräte als Shapefile (`Elangen_2015_Vektorgeometrie_Stadtteilbeiratsgebiete.zip`).
-  Damit ließe sich „welche Dokumente betreffen mein Beiratsgebiet?" beantworten.
-  Zwei Hürden: die Datei ist von 2015 und trägt Arbeitsnamen (`SB Zentrum/Nord`,
-  `SB West`) statt der heutigen Beiratsnamen, und sie liegt in DHDN/Gauß-Krüger
-  Zone 4 — für die Karte wäre eine Umrechnung nach WGS84 nötig.
-- **Satzung über Orts- und Stadtteilbeiräte (140.00).** Sie definiert die
-  Gebiete rechtsverbindlich, fehlt aber in `recht/registry.json`; das verlinkte
-  PDF liefert derzeit 404.
+- **Aktualität der Beiratsgebiete.** Ob die Grenzen seit 2015 unverändert
+  sind, lässt sich aus den veröffentlichten Daten nicht belegen. Dafür
+  spricht, dass Zahl (13) und Zuschnitt der Ortsbeiratsgebiete exakt zur
+  heutigen Satzung passen. Wer Gewissheit braucht, fragt bei Statistik und
+  Stadtforschung nach einer aktuellen Fassung.
+- **Satzung über Orts- und Stadtteilbeiräte (140.00)** fehlt in
+  `recht/registry.json`; das auf erlangen.de verlinkte PDF liefert 404. Der
+  Satzungstext ist aber über das Ratsinformationssystem erreichbar
+  (Vorlage `kvonr=2133817`, Anlage „Satzungsentwurf").

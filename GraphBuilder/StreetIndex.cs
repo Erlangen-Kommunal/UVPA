@@ -11,6 +11,13 @@ public sealed class StreetRecord
     [JsonPropertyName("name")] public string Name { get; set; } = "";
     [JsonPropertyName("schluessel")] public string Schluessel { get; set; } = "";
     [JsonPropertyName("bezirke")] public List<Bezirk> Bezirke { get; set; } = [];
+
+    /// <summary>Beirat mit dem größten Anteil an der Straße.</summary>
+    [JsonPropertyName("beirat")] public string? Beirat { get; set; }
+
+    /// <summary>Alle Beiräte, in denen ein nennenswerter Teil der Straße liegt
+    /// — Straßen auf einer Gebietsgrenze gehören zu mehreren.</summary>
+    [JsonPropertyName("beiraete")] public List<string> Beiraete { get; set; } = [];
 }
 
 public sealed class Bezirk

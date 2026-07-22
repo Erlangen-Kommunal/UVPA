@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex, nofollow">
   <title>UVPA Erlangen — Dokumentensuche</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="style.css?v=14">
+  <link rel="stylesheet" href="style.css?v=15">
   <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.34.0/dist/cytoscape.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
@@ -65,6 +65,7 @@
       </select>
     </label>
     <label>Stadtteil <select id="f-ort"><option value="">alle</option></select></label>
+    <label>Beirat <select id="f-beirat"><option value="">alle</option></select></label>
     <label>Sortierung
       <select id="f-sort">
         <option value="score">Relevanz</option>
@@ -127,6 +128,7 @@
             <span><i class="line line-cond"></i>Nur zeitweise</span>
             <span><i class="dot dot-poi"></i>Schule, Kita, Spielplatz, soziale Einrichtung
               <span class="ml-hint">(ab mittlerer Zoomstufe)</span></span>
+            <span><i class="line line-beirat"></i>Beiratsgebiet</span>
           </div>
           <div class="ml-row">
             <label><input type="checkbox" id="map-only-docs">
@@ -137,9 +139,10 @@
           <p class="ml-credit">
             Straßen und Einrichtungen: © <a href="https://www.openstreetmap.org/copyright"
               target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (ODbL) ·
-            Straßenverzeichnis und statistische Bezirke: Stadt Erlangen, Statistik und
-            Stadtforschung (dl-de/by-2.0) · Karte: <a href="https://basemap.de"
-              target="_blank" rel="noopener">basemap.de</a>
+            Straßenverzeichnis, statistische Bezirke und Beiratsgebiete: Stadt Erlangen,
+            Statistik und Stadtforschung (dl-de/by-2.0) · Karte: <a href="https://basemap.de"
+              target="_blank" rel="noopener">basemap.de</a> · Beiratsgebiete nach der
+            Geometrie von 2015, Namen nach der Satzung von 2020
           </p>
         </div>
       </div>
@@ -151,6 +154,6 @@
     <span id="version"></span>
   </footer>
 
-  <script type="module" src="app.js?v=14"></script>
+  <script type="module" src="app.js?v=15"></script>
 </body>
 </html>

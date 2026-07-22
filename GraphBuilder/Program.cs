@@ -294,10 +294,12 @@ if (streetIndex is not null)
     streetRows.AddRange(streetIndex.Streets.Select(s => new StreetRow(
         s.Name, s.Schluessel,
         string.Join("|", s.Bezirke.Select(b => b.ToString())),
-        streetDocCounts.GetValueOrDefault(s.Name))));
+        streetDocCounts.GetValueOrDefault(s.Name),
+        s.Beirat, string.Join("|", s.Beiraete))));
     Console.WriteLine($"Straßen: {streetDocCounts.Count} von {streetRows.Count} in Dokumenten " +
                       $"genannt, {docStreetRows.Count} Zuordnungen Dokument↔Straße, " +
-                      $"{topStreetCounts.Count} TOPs mit Straßenbezug.");
+                      $"{topStreetCounts.Count} TOPs mit Straßenbezug, " +
+                      $"{streetRows.Count(s => s.Beirat is not null)} einem Beirat zugeordnet.");
 }
 
 // ── Phase 4: Kuratierte externe Registries einlesen (Pläne, Rechtsvorschriften) ──

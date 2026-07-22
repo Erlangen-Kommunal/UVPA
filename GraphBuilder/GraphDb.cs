@@ -24,7 +24,8 @@ public sealed record PlanFileRow(
 
 /// <summary>Amtliches Straßenverzeichnis + Zahl der Dokumente, die die Straße nennen.</summary>
 public sealed record StreetRow(
-    string Name, string Schluessel, string Bezirke, int DocCount);
+    string Name, string Schluessel, string Bezirke, int DocCount,
+    string? Beirat, string Beiraete);
 
 /// <summary>Ein einzelnes Dokument nennt eine Straße (Grundlage des Kartenklicks).</summary>
 public sealed record DocStreetRow(string DocId, string Street);
@@ -98,7 +99,9 @@ public sealed class GraphDb : IDisposable
             name       VARCHAR PRIMARY KEY,    -- amtliche Schreibweise, identisch zum OSM-Namen auf der Karte
             schluessel VARCHAR,                -- Straßenschlüssel der Stadt ('0005')
             bezirke    VARCHAR,                -- '|'-getrennt, z. B. '20 Burgberg|21 Meilwald'
-            doc_count  INTEGER                 -- Dokumente, die die Straße nennen (Briefköpfe zählen nicht)
+            doc_count  INTEGER,                -- Dokumente, die die Straße nennen (Briefköpfe zählen nicht)
+            beirat     VARCHAR,                -- Beirat mit dem größten Anteil
+            beiraete   VARCHAR                 -- '|'-getrennt; Straßen auf einer Gebietsgrenze liegen in mehreren
         );
 
         -- Welches Dokument nennt welche Straße. Getrennt von den TOP-Kanten in
@@ -175,7 +178,8 @@ public sealed class GraphDb : IDisposable
         {
             var row = appender.CreateRow();
             row.AppendValue(s.Name).AppendValue(s.Schluessel)
-               .AppendValue(s.Bezirke).AppendValue(s.DocCount).EndRow();
+               .AppendValue(s.Bezirke).AppendValue(s.DocCount)
+               .AppendValue(s.Beirat).AppendValue(s.Beiraete).EndRow();
         }
     }
 

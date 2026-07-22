@@ -248,10 +248,20 @@ ul.plan-files a:hover { text-decoration: underline; }
 .line-cond   { background: repeating-linear-gradient(90deg,
                  var(--m-cond) 0 5px, transparent 5px 9px); }
 .line-hasdoc { background: var(--m-t20); height: 5px; }
+.line-beirat { background: repeating-linear-gradient(90deg,
+                 var(--m-poi) 0 6px, transparent 6px 10px); height: 2px; }
 .dot {
   width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none;
   background: var(--m-poi); box-shadow: 0 0 0 1.5px var(--surface-1);
 }
+
+/* Beschriftung der Beiratsgebiete auf der Karte */
+.beirat-label {
+  background: none; border: none; box-shadow: none; padding: 0;
+  color: var(--ink-2); font-size: .72rem; font-weight: 600;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
+}
+.beirat-label::before { display: none; }
 
 /* Popup auf der Karte: Straßenname + Dokumentbezug */
 .map-pop { font: inherit; font-size: .8rem; line-height: 1.45; }

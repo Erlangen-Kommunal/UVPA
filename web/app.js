@@ -13,7 +13,7 @@ import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1
 // Sichtbare App-Version (Fußzeile). Beim Ausliefern zusammen mit dem
 // ?v=…-Cache-Parameter in index.html erhöhen, damit Version und
 // tatsächlich geladener Code übereinstimmen.
-const APP_VERSION = "v14 · 2026-07-22";
+const APP_VERSION = "v15 · 2026-07-22";
 
 const $ = (id) => document.getElementById(id);
 const status = (msg) => { $("statusbar").textContent = msg; };
@@ -107,7 +107,8 @@ let lastTerms = [];
 function currentFilters() {
   return { year: $("f-year").value, type: $("f-type").value,
            ort: $("f-ort").value, sort: $("f-sort").value,
-           thema: $("f-thema").value, antrag: $("f-antrag").value };
+           thema: $("f-thema").value, antrag: $("f-antrag").value,
+           beirat: $("f-beirat").value };
 }
 
 function filterConds(f) {
@@ -118,6 +119,12 @@ function filterConds(f) {
     conds.push(`d.type_code = '${esc(f.type)}'`);
   if (f.ort) conds.push(
     `EXISTS (SELECT 1 FROM edges e WHERE e.source = d.node_id AND e.target = 'o:${esc(f.ort)}')`);
+  // Beirat: über die Straßen, die das Dokument nennt. Eine Straße auf einer
+  // Gebietsgrenze steht in beiraete unter beiden — wer nach Ost filtert, soll
+  // die Kurt-Schumacher-Straße sehen, auch wenn sie knapp überwiegend in Süd liegt.
+  if (f.beirat) conds.push(
+    `EXISTS (SELECT 1 FROM document_streets ds JOIN streets st ON st.name = ds.street
+             WHERE ds.doc_id = d.id AND ('|' || st.beiraete || '|') LIKE '%|${esc(f.beirat)}|%')`);
   if (f.thema) conds.push(`('|' || d.themen || '|') LIKE '%|${esc(f.thema)}|%'`);
   if (f.antrag) conds.push(
     `EXISTS (SELECT 1 FROM nodes an WHERE an.id = d.node_id AND an.antragsteller = '${esc(f.antrag)}')`);
@@ -157,7 +164,8 @@ async function runSearch() {
   // und keinen Antragsteller — bei diesen Filtern tauchen sie konsequent nicht
   // auf. Der Themen-Filter gilt dagegen auch für sie (Registry pflegt Themen).
   const registryKind = f.type === "PLAN" ? "plan" : f.type === "RECHT" ? "recht" : null;
-  const includeRegistry = (!f.type || registryKind) && !f.year && !f.ort && !f.antrag;
+  const includeRegistry =
+    (!f.type || registryKind) && !f.year && !f.ort && !f.antrag && !f.beirat;
   const includeDocs = !registryKind;
   const registryThemaCond = f.thema
     ? `AND ('|' || p.themen || '|') LIKE '%|${esc(f.thema)}|%'` : "";
@@ -202,13 +210,13 @@ async function runSearch() {
     renderResults(rows, `${rows.length} Treffer`);
     status(`${rows.length} Treffer für „${query}“.`);
   } else if (registryKind) {
-    rows = (f.year || f.ort || f.antrag) ? [] : await q(
+    rows = (f.year || f.ort || f.antrag || f.beirat) ? [] : await q(
       `SELECT p.id, 'plan' AS kind, p.kind AS pkind, p.title AS top_label, p.themen, p.beschreibung
        FROM plans p WHERE p.kind = '${esc(registryKind)}' ${registryThemaCond} ORDER BY p.title`);
     const label = registryKind === "recht" ? "Rechtsvorschriften" : "Pläne & Konzepte";
     renderResults(rows, `${rows.length} ${label}`);
-    status((f.year || f.ort || f.antrag)
-      ? `${label} haben kein Sitzungsjahr, keinen Stadtteil- und keinen Antragsteller-Bezug — diese Filter zurücksetzen, um sie zu sehen.`
+    status((f.year || f.ort || f.antrag || f.beirat)
+      ? `${label} haben kein Sitzungsjahr und keinen Stadtteil-, Beirats- oder Antragsteller-Bezug — diese Filter zurücksetzen, um sie zu sehen.`
       : `${rows.length} ${label} angezeigt.`);
   } else {
     const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
@@ -655,7 +663,9 @@ const POI_LABEL = {
 let map = null;
 let roadGeo = null;              // Rohdaten, für den Neuaufbau beim Umschalten des Filters
 let roadLayer = null;
+let beiratLayer = null;
 let streetDocs = new Map();      // Straßenname → Zahl der Dokumente
+let streetBeirat = new Map();    // Straßenname → Beirat/Beiräte (für das Popup)
 const streetLayers = new Map();  // Straßenname → Leaflet-Layer (eine Straße hat viele Abschnitte)
 let onlyDocs = false;
 
@@ -685,10 +695,12 @@ function roadPopup(props) {
   el.className = "map-pop";
   const name = props.name;
   const count = name ? streetDocs.get(name) ?? 0 : 0;
+  const bei = name ? streetBeirat.get(name) : null;
   el.innerHTML = `
     <strong>${escHtml(name ?? "Straße ohne Namen")}</strong>
     <div class="mp-meta">${escHtml(ROAD_LABEL[props.cls] ?? props.cls)}${
       props.cond ? ` · ${escHtml(props.cond)}` : ""}</div>
+    ${bei ? `<div class="mp-meta">${escHtml(bei.split("|").join(" · "))}</div>` : ""}
     ${name ? `<button type="button"${count ? "" : " disabled"}>${
       count ? `${count} Dokument${count === 1 ? "" : "e"} anzeigen`
             : "Keine Ausschussdokumente"}</button>` : ""}`;
@@ -729,10 +741,22 @@ async function initMap() {
 
   status("Lade Geodaten …");
   try {
-    streetDocs = new Map((await q(
-      "SELECT name, doc_count FROM streets WHERE doc_count > 0")).map(
-        (r) => [r.name, r.doc_count]));
+    const st = await q("SELECT name, doc_count, beiraete FROM streets");
+    streetDocs = new Map(st.filter((r) => r.doc_count > 0).map((r) => [r.name, r.doc_count]));
+    streetBeirat = new Map(st.filter((r) => r.beiraete).map((r) => [r.name, r.beiraete]));
   } catch { /* ältere graph.db ohne streets-Tabelle — Karte bleibt ohne Betonung */ }
+
+  // Beiratsgebiete als Umriss: neutrale Tinte, keine Füllung — sie sollen den
+  // Blick auf das Tempo-Netz nicht einfärben, nur den Zuschnitt zeigen.
+  const beiraete = await loadGeo("beiraete.geojson");
+  if (beiraete) {
+    beiratLayer = L.geoJSON(beiraete, {
+      interactive: false,
+      style: { color: "#52514e", weight: 2, opacity: 0.95, dashArray: "7 5", fill: false },
+      onEachFeature: (f, layer) => layer.bindTooltip(f.properties.name, {
+        permanent: true, direction: "center", className: "beirat-label" }),
+    }).addTo(map);
+  }
 
   const [roads, pois] = await Promise.all([
     loadGeo("tempo30.geojson"), loadGeo("einrichtungen.geojson")]);
@@ -862,6 +886,18 @@ async function populateFilters() {
     "SELECT DISTINCT antragsteller AS a FROM nodes WHERE antragsteller IS NOT NULL ORDER BY 1");
   $("f-antrag").insertAdjacentHTML("beforeend",
     antrag.map((r) => `<option value="${escHtml(r.a)}">${escHtml(r.a)}</option>`).join(""));
+
+  // Orts- und Stadtteilbeiräte aus der Straßenzuordnung (Tabelle streets).
+  // Ältere graph.db ohne diese Spalten: Filter bleibt leer und wirkungslos.
+  try {
+    const beiraete = await q(
+      `SELECT DISTINCT trim(b) AS beirat FROM (
+         SELECT unnest(string_split(beiraete, '|')) AS b FROM streets
+         WHERE beiraete IS NOT NULL AND beiraete != ''
+       ) WHERE trim(b) != '' ORDER BY beirat`);
+    $("f-beirat").insertAdjacentHTML("beforeend",
+      beiraete.map((r) => `<option value="${escHtml(r.beirat)}">${escHtml(r.beirat)}</option>`).join(""));
+  } catch { /* Spalte fehlt — Beiratsfilter bleibt ohne Einträge */ }
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
@@ -880,7 +916,7 @@ try {
   $("search-form").addEventListener("submit", (ev) => {
     ev.preventDefault(); showResultList(); runSearch();
   });
-  for (const id of ["f-thema", "f-antrag", "f-year", "f-type", "f-ort", "f-sort"])
+  for (const id of ["f-thema", "f-antrag", "f-year", "f-type", "f-ort", "f-beirat", "f-sort"])
     $(id).addEventListener("change", () => { showResultList(); runSearch(); });
   for (const t of TABS)
     $(`tab-${t}`).addEventListener("click", () => activateTab(t));
