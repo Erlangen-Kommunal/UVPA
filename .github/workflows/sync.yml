@@ -52,6 +52,13 @@ jobs:
         continue-on-error: true
         run: python tools/fetch_geodata.py
 
+      # Beratungsfolge der Vorlagen (welches Gremium wann mit welchem Ergebnis).
+      # Inkrementell: nur Vorlagen, die noch nicht in beratungsfolge.json stehen.
+      # Wie beim Geodaten-Schritt darf ein Ausfall den Sync nicht scheitern lassen.
+      - name: Refresh Beratungsfolge (Ratsinfo)
+        continue-on-error: true
+        run: python tools/fetch_beratungsfolge.py
+
       - name: Commit new documents
         run: |
           git config user.name "github-actions[bot]"

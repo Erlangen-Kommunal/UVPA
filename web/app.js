@@ -13,7 +13,7 @@ import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1
 // Sichtbare App-Version (Fußzeile). Beim Ausliefern zusammen mit dem
 // ?v=…-Cache-Parameter in index.html erhöhen, damit Version und
 // tatsächlich geladener Code übereinstimmen.
-const APP_VERSION = "v16 · 2026-07-22";
+const APP_VERSION = "v17 · 2026-07-22";
 
 const $ = (id) => document.getElementById(id);
 const status = (msg) => { $("statusbar").textContent = msg; };
@@ -363,6 +363,38 @@ async function showDocPdf(d) {
   status(`PDF angezeigt (${(bytes.length / 1048576).toFixed(1)} MB).`);
 }
 
+/**
+ * Beratungsfolge einer Vorlage als kompakte Liste.
+ *
+ * Eine einzelne Station sagt wenig — interessant wird es, wenn dieselbe Vorlage
+ * durch mehrere Gremien läuft (Ausschuss empfiehlt, Stadtrat beschließt) oder
+ * mehrfach vertagt wird. Deshalb wird der Abschnitt erst ab zwei Stationen
+ * gezeigt und das eigene Gremium hervorgehoben.
+ */
+function beratungsfolgeHtml(rows) {
+  if (!rows || rows.length < 2) return "";
+  const items = rows.map((b) => {
+    const uvpa = /Umwelt-,\s*Verkehrs-\s*und\s*Planungs/i.test(b.gremium || "");
+    const datum = b.datum ? fmtDatum(b.datum) : "";
+    const text = `${escHtml(b.gremium)}${b.top ? ` · TOP ${escHtml(b.top)}` : ""}` +
+      (b.ergebnis ? ` — <strong>${escHtml(b.ergebnis)}</strong>` : "");
+    const inner = b.url
+      ? `<a href="${escHtml(b.url)}" target="_blank" rel="noopener">${text}</a>`
+      : text;
+    return `<li class="${uvpa ? "bf-eigen" : ""}"><span class="bf-datum">${escHtml(datum)}</span> ${inner}</li>`;
+  }).join("");
+  return `<details class="beratungsfolge"><summary>Beratungsfolge — ${rows.length} Stationen</summary>
+    <ol class="bf-liste">${items}</ol>
+    <p class="bf-quelle">Quelle: Ratsinformationssystem der Stadt Erlangen. Die Liste
+      umfasst alle Gremien, die diese Vorlage behandelt haben — auch außerhalb des UVPA.</p>
+  </details>`;
+}
+
+function fmtDatum(iso) {
+  const [y, m, d] = String(iso).slice(0, 10).split("-");
+  return d && m && y ? `${d}.${m}.${y}` : String(iso);
+}
+
 async function openDoc(id) {
   const [d] = await q(
     `SELECT d.id, d.title, d.type_code, d.node_id, d.path, d.url, d.pages, d.text,
@@ -380,6 +412,18 @@ async function openDoc(id) {
      WHERE e.source = '${esc(d.node_id)}' AND e.type = 'mentions_strasse'
      ORDER BY e.weight DESC, n.label LIMIT 20`);
 
+  // Beratungsfolge: dieselbe Vorlage kann in mehreren Gremien laufen. Ältere
+  // graph.db-Stände haben die Tabelle nicht — dann bleibt der Abschnitt weg.
+  let beratungen = [];
+  if (d.vorlage_nr) {
+    try {
+      beratungen = await q(
+        `SELECT datum::VARCHAR AS datum, gremium, top, ergebnis, url
+         FROM beratungen WHERE vorlage_nr = '${esc(d.vorlage_nr)}'
+         ORDER BY datum, gremium`);
+    } catch { /* Tabelle fehlt */ }
+  }
+
   const tc = d.type_code || "AN";
   const html = `<div class="doc-head">
     <h3><span class="badge">${escHtml(tc)}</span>${escHtml(d.title)}</h3>
@@ -387,6 +431,7 @@ async function openDoc(id) {
     <p class="meta">${escHtml(d.top_label)}${d.vorlage_nr ? " · Vorlage " + escHtml(d.vorlage_nr) : ""}</p>
     ${d.summary ? `<p class="doc-summary">${escHtml(d.summary)}</p>` : ""}
     ${d.themen ? `<p class="meta">Themen: ${escHtml(themenText(d.themen))}</p>` : ""}
+    ${beratungsfolgeHtml(beratungen)}
     ${streets.length ? `<p class="doc-streets"><span class="lbl">Straßen:</span>` +
       streets.map((s) => `<button type="button" class="street-chip"
         data-street="${escHtml(s.name)}">${escHtml(s.name)}</button>`).join("") + `</p>` : ""}
@@ -643,6 +688,14 @@ const TILE_URL = "https://sgx.geodatenzentrum.de/wmts_basemapde/tile/1.0.0/" +
 const TILE_ATTR = '© <a href="https://basemap.de" target="_blank" rel="noopener">basemap.de/BKG</a> · ' +
   '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende';
 
+// Offene WMS-Dienste der Bayerischen Vermessungsverwaltung, beide CC BY 4.0 und
+// kostenfrei. Anders als der BayernAtlas (X-Frame-Options: DENY) sind sie direkt
+// einbettbar: EPSG:3857 wird unterstützt, CORS-Header werden gesendet.
+const BY_DOP_URL = "https://geoservices.bayern.de/od/wms/dop/v1/dop40";
+const BY_ALKIS_URL = "https://geoservices.bayern.de/od/wms/alkis/v1/parzellarkarte";
+const BY_ATTR = '© <a href="https://geoservices.bayern.de" target="_blank" rel="noopener">Bayerische Vermessungsverwaltung</a>';
+const FLURSTUECKE_AB_ZOOM = 16;
+
 // Farbrollen gespiegelt aus style.css (:root). Leaflet braucht die Werte als
 // Zeichenkette; die Begründung der Palette steht dort.
 const ROAD_STYLE = {
@@ -737,7 +790,39 @@ async function initMap() {
   // spürbar bremsen — auf Canvas gezeichnet bleibt die Karte flüssig.
   map = L.map("map", { center: [49.5897, 11.0040], zoom: 13, preferCanvas: true,
                        maxBounds: [[49.45, 10.80], [49.72, 11.22]], minZoom: 11 });
-  L.tileLayer(TILE_URL, { maxZoom: 19, attribution: TILE_ATTR }).addTo(map);
+
+  // Grau als Standard, damit das Tempo-Netz und nicht der Untergrund trägt.
+  // Luftbild und Flurstücke kommen als amtliche WMS-Dienste der Bayerischen
+  // Vermessungsverwaltung (CC BY 4.0) direkt herein — sie liefern EPSG:3857 und
+  // CORS-Header. Der BayernAtlas selbst wäre nicht einbettbar (X-Frame-Options).
+  const grundkarten = {
+    "basemap.de (grau)": L.tileLayer(TILE_URL, { maxZoom: 19, attribution: TILE_ATTR }),
+    "OpenStreetMap": L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende',
+    }),
+    "Luftbild (amtlich, 40 cm)": L.tileLayer.wms(BY_DOP_URL, {
+      layers: "by_dop40c", format: "image/jpeg", maxZoom: 20,
+      attribution: BY_ATTR + " — DOP40 (CC BY 4.0)",
+    }),
+  };
+  const FLURSTUECKE = "Flurstücke (ALKIS)";
+  const overlays = {
+    [FLURSTUECKE]: L.tileLayer.wms(BY_ALKIS_URL, {
+      layers: "by_alkis_parzellarkarte_umr_gelb", format: "image/png",
+      transparent: true, maxZoom: 20,
+      attribution: BY_ATTR + " — ALKIS-Parzellarkarte (CC BY 4.0)",
+    }),
+  };
+  grundkarten["basemap.de (grau)"].addTo(map);
+  L.control.layers(grundkarten, overlays).addTo(map);
+  // Der Umring ist für große Maßstäbe gezeichnet; weiter draußen bleibt er leer
+  // und der eingeschaltete Layer sähe ohne Hinweis defekt aus.
+  map.on("overlayadd", (e) => {
+    if (e.name === FLURSTUECKE && map.getZoom() < FLURSTUECKE_AB_ZOOM) {
+      status(`„${FLURSTUECKE}“ ist eingeschaltet, wird aber erst ab Zoomstufe ${FLURSTUECKE_AB_ZOOM} gezeichnet — bitte näher heranzoomen.`);
+    }
+  });
 
   status("Lade Geodaten …");
   try {

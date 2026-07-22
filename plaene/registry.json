@@ -12,17 +12,28 @@
     ]
   },
   {
+    "id": "nvp-2025",
+    "title": "Nahverkehrsplan (NVP) 2025",
+    "beschreibung": "Geltende Fassung, vom Stadtrat am 27.11.2025 beschlossen. Legt Handlungsfelder und Zielsetzungen des öffentlichen Nahverkehrs für die kommenden fünf Jahre fest und löst den NVP 2016–2021 ab. Rechtlich vorgeschriebenes Planungsinstrument der Kommune; entstanden aus einem Beteiligungsprozess mit Verkehrsunternehmen, Aufgabenträgern, Forum Mobilität, Behindertenbeauftragter sowie Orts- und Stadtteilbeiräten.",
+    "erstellt": "2025-11-27",
+    "themen": ["ÖPNV & Bahn"],
+    "quelle_url": "https://erlangen.de/aktuelles/nahverkehrsplan-erlangen",
+    "dateien": [
+      { "titel": "Nahverkehrsplan Erlangen 2025", "pfad": "plaene/nahverkehrsplan_2025.pdf", "quelle_url": "https://erlangen.de/uwao-api/faila/files/bypath/Dokumente/Bauen%20&%20Planen/Verkehr/nahverkehrsplan_erlangen.pdf" }
+    ],
+    "hinweis": "Original 27,3 MB; im Repo komprimiert (4,9 MB, 214 Seiten, Text erhalten), weil der Pre-Commit-Hook ab 12 MB blockt. Für die amtliche Fassung dem Quell-Link folgen."
+  },
+  {
     "id": "nvp-2016",
     "title": "Nahverkehrsplan (NVP) 2016–2021",
-    "beschreibung": "Legt Handlungsfelder und Zielsetzungen im Bereich des öffentlichen Nahverkehrs fest. Rechtlich vorgeschriebenes Planungsinstrument der Kommune. Dies ist die zuletzt von der Stadt veröffentlichte Fassung; die Fortschreibung NVP 2025 lag zum Zeitpunkt der Erfassung (Sommer 2026) den Verbänden zur Kommentierung vor und war noch nicht als PDF verfügbar.",
+    "beschreibung": "Vorgängerfassung, abgelöst durch den NVP 2025. Bleibt als Vergleichsgrundlage erfasst, weil Ausschussunterlagen bis 2025 sich auf diese Fassung beziehen.",
     "erstellt": "2016-01-01",
     "themen": ["ÖPNV & Bahn"],
     "quelle_url": "https://erlangen.de/aktuelles/forum-nahverkehrsplan",
     "dateien": [
       { "titel": "Nahverkehrsplan 2016–2021", "pfad": "plaene/nahverkehrsplan_2016-2021.pdf", "quelle_url": "https://erlangen.de/uwao-api/faila/files/bypath/Dokumente/Bauen%20&%20Planen/Verkehr/Forum%20Nahverkehrsplan/nahverkehrsplan_erlangen_2016-2021.pdf" },
       { "titel": "Forum Nahverkehrsplan – Präsentation 19.07.2023 (Fortschreibungsprozess)", "pfad": "plaene/nvp_forum_praesentation_2023-07-19.pdf", "quelle_url": "https://erlangen.de/uwao-api/faila/files/bypath/Dokumente/Bauen%20&%20Planen/Verkehr/Forum%20Nahverkehrsplan/praesentation_19.07.2023_-_nahverkehrsplan.pdf" }
-    ],
-    "hinweis": "NVP 2025 (Fortschreibung) noch nicht öffentlich als Dokument verfügbar, Stand der Prüfung 2026-07-19 — bei künftigem Sync erneut prüfen."
+    ]
   },
   {
     "id": "verkehrskonzept-erlangen-sued",

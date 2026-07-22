@@ -169,6 +169,20 @@ main { flex: 1; display: flex; min-height: 0; }
   background: var(--page); border-left: 3px solid var(--c-top); border-radius: 0 6px 6px 0;
   font-size: .85rem; line-height: 1.5; color: var(--ink);
 }
+/* Beratungsfolge — eingeklappt, weil sie nur bei Mehrfachbefassung interessiert */
+.beratungsfolge { margin: .6rem 0 .2rem; }
+.beratungsfolge summary {
+  cursor: pointer; font-size: .8rem; font-weight: 600; color: var(--c-top);
+  padding: .35rem .6rem; border: 1px solid var(--hairline); border-radius: 6px;
+  background: var(--page); list-style-position: inside;
+}
+.beratungsfolge summary:hover { border-color: var(--c-top); }
+.bf-liste { margin: .5rem 0 .2rem; padding-left: 1.4rem; }
+.bf-liste li { font-size: .82rem; line-height: 1.5; color: var(--ink-2); padding: .12rem 0; }
+.bf-liste li.bf-eigen { color: var(--ink); }
+.bf-datum { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: .3rem; }
+.bf-quelle { font-size: .72rem; color: var(--muted); margin: .3rem 0 0; }
+
 .doc-actions { margin-top: .6rem; display: flex; gap: .5rem; flex-wrap: wrap; }
 .doc-actions a, .doc-actions button {
   font-size: .8rem; padding: .35rem .7rem; cursor: pointer;

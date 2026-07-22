@@ -16,6 +16,12 @@ public static class PdfText
     /// </summary>
     public static (string Text, int Pages) Extract(string path)
     {
+        // Das RIS liefert manche Anlagen als .pdf aus, die in Wahrheit Excel-
+        // Arbeitsmappen sind (Haushalts- und Abstimmungslisten). PdfPig scheitert
+        // daran stumm — deshalb vor dem Öffnen die Magic Bytes prüfen.
+        if (SheetText.IstZipContainer(path))
+            return SheetText.Extract(path);
+
         try
         {
             using var pdf = PdfDocument.Open(path);

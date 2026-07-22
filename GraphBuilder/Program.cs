@@ -372,6 +372,42 @@ void LoadRegistry(string folderName, string nodeType, string idPrefix, string ed
 LoadRegistry("plaene", "plan", "p", "relates_to_plan");
 LoadRegistry("recht", "recht", "r", "relates_to_recht");
 
+// ── Phase 4b: Beratungsfolge der Vorlagen ────────────────────────────────────
+// beratungsfolge.json entsteht in tools/fetch_beratungsfolge.py. Die Datei ist
+// optional: fehlt sie, bleibt die Tabelle leer und das Frontend zeigt den
+// Abschnitt schlicht nicht an.
+
+var beratungRows = new List<BeratungRow>();
+var beratungFile = Path.Combine(repoRoot, "beratungsfolge.json");
+if (File.Exists(beratungFile))
+{
+    using var doc = JsonDocument.Parse(File.ReadAllText(beratungFile));
+    foreach (var vorlage in doc.RootElement.EnumerateObject())
+    {
+        var kvonr = vorlage.Name;
+        var vorlageNr = vorlage.Value.TryGetProperty("vorlage_nr", out var vn) ? vn.GetString() : null;
+        if (!vorlage.Value.TryGetProperty("beratungen", out var liste)) continue;
+        foreach (var b in liste.EnumerateArray())
+        {
+            string? S(string k) => b.TryGetProperty(k, out var v) ? v.GetString() : null;
+            DateTime? datum = DateTime.TryParse(S("datum"), out var d) ? d : null;
+            beratungRows.Add(new BeratungRow(
+                kvonr, string.IsNullOrWhiteSpace(vorlageNr) ? null : vorlageNr, datum,
+                S("gremium") ?? "", S("top"),
+                b.TryGetProperty("oeffentlich", out var o) && o.ValueKind == JsonValueKind.True,
+                S("ergebnis"), S("url")));
+        }
+    }
+    var gremien = beratungRows.Select(b => b.Gremium).Distinct().Count();
+    Console.WriteLine($"Beratungsfolge: {beratungRows.Count} Beratungen zu " +
+        $"{beratungRows.Select(b => b.Kvonr).Distinct().Count()} Vorlagen in {gremien} Gremien.");
+}
+else
+{
+    Console.WriteLine("Beratungsfolge: beratungsfolge.json fehlt — Abschnitt bleibt leer " +
+        "(mit tools/fetch_beratungsfolge.py erzeugen).");
+}
+
 // ── Phase 5: DuckDB schreiben + Thread-Kanten + FTS-Index ────────────────────
 
 using (var db = new GraphDb(dbPath))
@@ -384,6 +420,7 @@ using (var db = new GraphDb(dbPath))
     db.InsertPlanFiles(planFileRows);
     db.InsertStreets(streetRows);
     db.InsertDocumentStreets(docStreetRows);
+    db.InsertBeratungen(beratungRows);
     db.CreateThreadEdges();
     if (extractText)
         db.CreateFtsIndex();

@@ -27,6 +27,11 @@ public sealed record StreetRow(
     string Name, string Schluessel, string Bezirke, int DocCount,
     string? Beirat, string Beiraete);
 
+/// <summary>Eine Station der Beratungsfolge einer Vorlage (aus beratungsfolge.json).</summary>
+public sealed record BeratungRow(
+    string Kvonr, string? VorlageNr, DateTime? Datum, string Gremium,
+    string? Top, bool Oeffentlich, string? Ergebnis, string? Url);
+
 /// <summary>Ein einzelnes Dokument nennt eine Straße (Grundlage des Kartenklicks).</summary>
 public sealed record DocStreetRow(string DocId, string Street);
 
@@ -111,6 +116,22 @@ public sealed class GraphDb : IDisposable
             doc_id VARCHAR NOT NULL,           -- documents.id
             street VARCHAR NOT NULL            -- streets.name
         );
+
+        -- Beratungsfolge einer Vorlage: welches Gremium hat sie wann mit welchem
+        -- Ergebnis behandelt. Das beantwortet die Frage, ob der Stadtrat einer
+        -- Ausschussempfehlung gefolgt ist — im Index steht sie nicht, sie kommt
+        -- aus tools/fetch_beratungsfolge.py (Registerkarte "Beratungen" im RIS).
+        -- Enthält bewusst auch Gremien außerhalb des UVPA.
+        CREATE TABLE beratungen (
+            kvonr       VARCHAR NOT NULL,      -- interne Vorlagennummer des RIS
+            vorlage_nr  VARCHAR,               -- sprechende Nummer, z. B. '611/315/2019'
+            datum       DATE,
+            gremium     VARCHAR NOT NULL,
+            top         VARCHAR,
+            oeffentlich BOOLEAN,
+            ergebnis    VARCHAR,               -- 'Beschluss' | 'Empfehlung' | 'Kenntnisnahme' | 'Vertagt' | ''
+            url         VARCHAR                -- Deeplink auf die Sitzung im RIS
+        );
         """);
 
     public void InsertNodes(IEnumerable<NodeRow> nodes)
@@ -188,6 +209,18 @@ public sealed class GraphDb : IDisposable
         using var appender = _conn.CreateAppender("document_streets");
         foreach (var r in rows)
             appender.CreateRow().AppendValue(r.DocId).AppendValue(r.Street).EndRow();
+    }
+
+    public void InsertBeratungen(IEnumerable<BeratungRow> rows)
+    {
+        using var appender = _conn.CreateAppender("beratungen");
+        foreach (var b in rows)
+        {
+            var row = appender.CreateRow();
+            row.AppendValue(b.Kvonr).AppendValue(b.VorlageNr).AppendValue(b.Datum)
+               .AppendValue(b.Gremium).AppendValue(b.Top).AppendValue(b.Oeffentlich)
+               .AppendValue(b.Ergebnis).AppendValue(b.Url).EndRow();
+        }
     }
 
     /// <summary>
