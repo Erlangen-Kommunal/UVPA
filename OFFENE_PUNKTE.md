@@ -168,22 +168,89 @@ Zeilen. Dazu `geo/DATENQUELLEN.md` mit den geprüften Datenquellen (siehe B4).
 
 # Teil B — noch offen
 
-## B1. Wochen-Sync: läuft er überhaupt?
+## B0. Stand bei Abbruch am 2026-07-22, abends — hier weitermachen
 
-In **keinem** der beiden Repos existiert je ein Commit von `github-actions[bot]`.
-Für SBR ist das erklärbar — der Sync fand schlicht nie etwas Neues (bis auf die
-Sitzung aus A2, die er wegen des Parserfehlers nicht sah). Für **UVPA ist es
-das nicht**: dort fehlten vier Sitzungen aus 2020, die ein laufender Wochen-Sync
-längst nachgezogen hätte.
+**Genau ein Handgriff fehlt, dann sind die Daten vollständig:** die Sitzung
+**2020-04-21** ist als einzige noch nicht heruntergeladen. Alle anderen acht
+sind da (2020-01-21 mit 54, 2020-02-18 mit 76, 2020-03-17 mit 65 und
+2026-07-14 mit 33 PDFs).
 
-**Nicht verifizierbar gewesen** — die `gh`-CLI fehlt auf dem Rechner, die
-Workflow-Logs waren nicht einsehbar. Zu prüfen:
+```bash
+python "…/scratchpad/nachladen.py"    # oder FEHLEND = {"2020-04-21"} anpassen
+```
 
-- Repository → Actions → **Workflow permissions auf „Read and write"** (ohne das
-  scheitert der Auto-Commit)
-- Läuft der Cron? GitHub deaktiviert Cron-Workflows in Repos ohne Aktivität nach
-  60 Tagen automatisch.
-- Die Logs der letzten Läufe ansehen — dort steht, woran es lag.
+`python uvp_agent.py --sync` **nicht** dafür nehmen: Der Lauf ist zweimal in der
+Kompressionsphase gestorben, jeweils ohne Abschlusszeile, bei ~2,5 GB
+Speicherverbrauch. MuPDF kommt mit den 100-MB-Sitzungsunterlagen nicht zurecht
+(`zlib error: unknown compression method`, `cmsOpenProfileFromMem failed`). Das
+Nachlade-Skript umgeht die Kompression und den erzwungenen Index-Neuscrape.
+
+### Was uncommittet im Arbeitsverzeichnis liegt
+
+- **230 ungetrackte PDFs**, zusammen rund 250 MB, plus `index.json` (jetzt
+  69 Sitzungen) und diese Datei
+- **Sechs Dateien ≥ 12 MB**, die der Pre-Commit-Hook blockt. Die Kompression hat
+  sie nicht kleiner bekommen:
+
+  | Größe | Datei |
+  |---|---|
+  | 115,1 MB | `2020-05-19/SU_Sitzungsunterlagen_oeffentlich.pdf` |
+  | 99,0 MB | `2020-05-19/TOP_Oe11_…/Anlage_5_-_Ueberarbeitung_Siegerentwurf_Stand_April_2020.pdf` |
+  | 84,0 MB | `2020-09-22/SU_Sitzungunterlagen_oeffentlich.pdf` |
+  | 15,1 MB | `2020-07-21/SU_Sitzungsunterlagen_oeffentlich.pdf` |
+  | 14,2 MB | `2020-03-17/SU_Sitzungsunterlagen_oeffentlich.pdf` |
+  | 12,1 MB | `2020-02-18/SU_Sitzungsunterlagen_oeffentlich.pdf` |
+
+  **Ohne Entscheidung dazu lässt sich nichts committen.** Fünf davon sind
+  „Sitzungsunterlagen"-Bündel — das komplette Sitzungspaket, dessen Inhalt als
+  Einzeldokumente (Einladung, Vorlagen, Anlagen) bereits im selben Verzeichnis
+  liegt. 31 solcher Bündel sind bereits im Repo, sie gehören also zum Bestand;
+  diese sind nur außergewöhnlich groß. Optionen: weglassen (`.gitignore`),
+  aggressiver komprimieren (kostet Bildqualität in den Plänen), oder nur
+  verlinken statt speichern — das Muster dafür gibt es in den Registern
+  (`dateien: []` mit `quelle_url`).
+
+  Ein Messwert zur Einordnung: `2020-05-19` steuert allein 214 MB der 250 MB bei.
+
+> **Keine Panik bei den Log-Zeilen „120.695.472 B":** Das Log meldet Bytes,
+> Explorer und PowerShell melden MiB. 120.695.472 B *sind* 115,1 MiB — die
+> Kompression hat nichts aufgebläht, sie hat nur nichts erreicht.
+
+### Danach
+
+1. `dotnet run --project GraphBuilder -- .` — `graph.db` mit den neuen Sitzungen
+   und der Beratungsfolge neu bauen
+2. Anreicherung für die neuen Sitzungen (siehe B2)
+3. **Push:** In UVPA liegen drei Commits lokal (`7d027e6`, `4b66799`, `a725165`).
+   SBR ist gepusht. Ein Push löst jeweils den Deploy aus.
+
+## B1. Wochen-Sync — geklärt: er ist einfach noch nie fällig gewesen
+
+**Der ursprüngliche Verdacht war falsch und ist hiermit erledigt.** Ausgangspunkt
+war, dass in keinem der beiden Repos je ein Commit von `github-actions[bot]`
+existiert. Daraus hatte ich geschlossen, der Sync sei kaputt — der Schluss hielt
+nicht.
+
+Über die öffentliche GitHub-API (Repos sind öffentlich, `actions/runs` ist ohne
+Anmeldung lesbar, dafür braucht es keine `gh`-CLI) ergibt sich:
+
+- Beide Workflows stehen auf `state=active`, sind also **nicht** von GitHub
+  wegen Inaktivität abgeschaltet.
+- Sämtliche Läufe — 23 in UVPA, 12 in SBR — sind „Build & Deploy" mit dem Event
+  `push`. **Kein einziger `schedule`-Lauf.**
+- Der Grund ist schlicht das Datum: `sync.yml` kam am **Mo 2026-07-20** (UVPA)
+  bzw. **Di 2026-07-21** (SBR) ins Repo, der Cron feuert **donnerstags**. Der
+  erste planmäßige Lauf ist **Do 2026-07-23** — er stand zum Prüfzeitpunkt
+  (Mi 2026-07-22) noch aus.
+
+Die vier fehlenden Sitzungen aus 2020 hat der Sync also nicht „übersehen", er
+hatte schlicht noch keine Gelegenheit.
+
+**Was dadurch weiterhin ungetestet ist:** ob der Auto-Commit die nötigen Rechte
+hat. Die Einstellung *Actions → Workflow permissions → „Read and write"* lässt
+sich ohne Anmeldung nicht auslesen (HTTP 401), und der Workflow hat sie noch nie
+gebraucht. Nach dem ersten Donnerstagslauf im Log nachsehen: Bleibt er beim
+`git push` hängen, ist genau das die Ursache.
 
 Die Pfadangaben in beiden Workflows sind korrekt (SBR nutzt
 `working-directory: SBR`, UVPA hat das Skript im Wurzelverzeichnis).
