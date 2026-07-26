@@ -13,7 +13,7 @@ import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1
 // Sichtbare App-Version (Fußzeile). Beim Ausliefern zusammen mit dem
 // ?v=…-Cache-Parameter in index.html erhöhen, damit Version und
 // tatsächlich geladener Code übereinstimmen.
-const APP_VERSION = "v18 · 2026-07-22";
+const APP_VERSION = "v19 · 2026-07-26";
 
 const $ = (id) => document.getElementById(id);
 const status = (msg) => { $("statusbar").textContent = msg; };
@@ -21,6 +21,13 @@ const bootMsg = (msg) => { $("boot-msg").textContent = msg; };
 const esc = (s) => String(s).replace(/'/g, "''");
 const escHtml = (s) => String(s).replace(/[&<>"]/g,
   (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+// escHtml allein hält eine javascript:-URL nicht auf — sie enthält keines der
+// escapten Zeichen. Daher vor jedem href zusätzlich das Schema prüfen.
+const safeUrl = (url) => {
+  if (!url) return "#";
+  const trimmed = String(url).trim();
+  return /^(https?:\/\/|mailto:|\/|#)/i.test(trimmed) ? trimmed : "#";
+};
 const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const TYPE_NAMES = { EI: "Einladung", NI: "Niederschrift", SU: "Sitzungsunterlagen",
@@ -340,7 +347,7 @@ async function showDocPdf(d) {
     const sourceUrl = d.url ?? d.quelle_url;
     notice(`Dieses PDF ist mit ${(size / 1048576).toFixed(1)} MB sehr groß und wird hier nicht ` +
       `automatisch geladen. Bitte das Original ${sourceUrl
-        ? `<a href="${escHtml(sourceUrl)}" target="_blank" rel="noopener">${sourceLabel}</a>`
+        ? `<a href="${escHtml(safeUrl(sourceUrl))}" target="_blank" rel="noopener">${sourceLabel}</a>`
         : sourceLabel}.`);
     status(`PDF zu groß für die Inline-Anzeige (${(size / 1048576).toFixed(1)} MB).`);
     return;
@@ -379,7 +386,7 @@ function beratungsfolgeHtml(rows) {
     const text = `${escHtml(b.gremium)}${b.top ? ` · TOP ${escHtml(b.top)}` : ""}` +
       (b.ergebnis ? ` — <strong>${escHtml(b.ergebnis)}</strong>` : "");
     const inner = b.url
-      ? `<a href="${escHtml(b.url)}" target="_blank" rel="noopener">${text}</a>`
+      ? `<a href="${escHtml(safeUrl(b.url))}" target="_blank" rel="noopener">${text}</a>`
       : text;
     return `<li class="${uvpa ? "bf-eigen" : ""}"><span class="bf-datum">${escHtml(datum)}</span> ${inner}</li>`;
   }).join("");
@@ -438,7 +445,7 @@ async function openDoc(id) {
     <div class="doc-actions">
       <button id="btn-text" class="active" type="button">Text</button>
       <button id="btn-pdf" type="button">PDF</button>
-      <a href="${escHtml(d.url)}" target="_blank" rel="noopener"
+      <a href="${escHtml(safeUrl(d.url))}" target="_blank" rel="noopener"
          title="${escHtml(d.path)}">⬇ Original-PDF (RIS)</a>
       <button id="btn-context" type="button">⛬ Kontext im Netzwerk</button>
     </div>
@@ -488,7 +495,7 @@ async function openPlan(planId) {
     ${p.beschreibung ? `<p class="meta">${escHtml(p.beschreibung)}</p>` : ""}
     <p class="meta">${p.themen ? escHtml(themenText(p.themen)) : ""}</p>
     <div class="doc-actions">
-      ${p.quelle_url ? `<a href="${escHtml(p.quelle_url)}" target="_blank" rel="noopener">🔗 Quelle (Stadt Erlangen)</a>` : ""}
+      ${p.quelle_url ? `<a href="${escHtml(safeUrl(p.quelle_url))}" target="_blank" rel="noopener">🔗 Quelle (Stadt Erlangen)</a>` : ""}
     </div>
   </div>
   <div id="doc-notice" class="notice" hidden></div>
@@ -497,7 +504,7 @@ async function openPlan(planId) {
       files.map((f) => `<li>
           <a href="#" data-plan-file="${escHtml(f.id)}">${escHtml(f.titel)}</a>
           ${f.pages ? `<span class="meta"> · ${f.pages} S.</span>` : ""}
-          ${f.quelle_url ? ` · <a href="${escHtml(f.quelle_url)}" target="_blank" rel="noopener">Original</a>` : ""}
+          ${f.quelle_url ? ` · <a href="${escHtml(safeUrl(f.quelle_url))}" target="_blank" rel="noopener">Original</a>` : ""}
         </li>`).join("") + `</ul></div>` : ""}
     ${related.length ? `<div class="doc-page"><p class="doc-page-nr">Verknüpfte Tagesordnungspunkte (${related.length})</p><ul class="plan-files">` +
       related.map((r) => `<li>${r.date ?? ""} — ${escHtml(shortLabel(r.label, 90))}</li>`).join("") + `</ul></div>` : ""}
@@ -509,8 +516,9 @@ async function openPlan(planId) {
 }
 
 async function openPlanFile(fileId, planTitle, badge = "PLAN", planId = null) {
-  const [f] = await q(
-    `SELECT titel, path, quelle_url, pages, text FROM plan_files WHERE rowid = ${Number(fileId)}`);
+  // Nicht-numerische IDs (manipulierte URL) abfangen statt NaN ins SQL zu geben
+  const [f] = Number.isInteger(Number(fileId)) ? await q(
+    `SELECT titel, path, quelle_url, pages, text FROM plan_files WHERE rowid = ${Number(fileId)}`) : [];
   if (!f) return;
   const html = `<div class="doc-head">
     <h3><span class="badge badge-plan">${badge}</span>${escHtml(f.titel)}</h3>
@@ -518,7 +526,7 @@ async function openPlanFile(fileId, planTitle, badge = "PLAN", planId = null) {
     <div class="doc-actions">
       <button id="btn-text" class="active" type="button">Text</button>
       ${f.path ? `<button id="btn-pdf" type="button">PDF</button>` : ""}
-      ${f.quelle_url ? `<a href="${escHtml(f.quelle_url)}" target="_blank" rel="noopener">⬇ Original</a>` : ""}
+      ${f.quelle_url ? `<a href="${escHtml(safeUrl(f.quelle_url))}" target="_blank" rel="noopener">⬇ Original</a>` : ""}
       ${planId ? `<button id="btn-back-plan" type="button">↩ Übersicht „${escHtml(shortLabel(planTitle, 30))}“</button>` : ""}
     </div>
   </div>
@@ -1033,7 +1041,7 @@ function gremienEintrag(t) {
       ${t.kvonr && uvpaVorlagen?.has(t.kvonr)
         ? `<span class="gr-uvpa" title="Dieselbe Vorlage lag auch im UVPA">auch im UVPA</span>` : ""}
     </div>
-    <a class="gr-titel" href="${escHtml(t.url)}" target="_blank" rel="noopener">${escHtml(t.titel)}</a>
+    <a class="gr-titel" href="${escHtml(safeUrl(t.url))}" target="_blank" rel="noopener">${escHtml(t.titel)}</a>
     ${t.beschluss ? `<div class="gr-beschluss">${escHtml(t.beschluss)}</div>` : ""}
     ${strassen ? `<div class="gr-marker">${strassen}</div>` : ""}
   </div>`;

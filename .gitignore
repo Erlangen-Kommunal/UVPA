@@ -56,3 +56,10 @@ organigramm_stadt_erlangen_*.pdf
 *.local.env
 .env
 .env.*
+
+# Interne Sicherheits-/Härtungsplanung — Repo ist public, offene Schwachstellen
+# gehören nicht in den öffentlichen Verlauf. Bleibt bewusst nur lokal.
+SICHERHEIT.md
+
+# Testartefakte des Playwright-MCP-Servers (Screenshots, Snapshots, Logs)
+.playwright-mcp/
