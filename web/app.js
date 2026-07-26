@@ -13,7 +13,10 @@ import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1
 // Sichtbare App-Version (Fußzeile). Beim Ausliefern zusammen mit dem
 // ?v=…-Cache-Parameter in index.html erhöhen, damit Version und
 // tatsächlich geladener Code übereinstimmen.
-const APP_VERSION = "v19 · 2026-07-26";
+const APP_VERSION = "v20 · 2026-07-26";
+// Cache-Parameter für content/*.json — mit der App-Version mitziehen, damit
+// geänderte Inhalte nicht aus dem Browser-Cache kommen.
+const CONTENT_VERSION = "20";
 
 const $ = (id) => document.getElementById(id);
 const status = (msg) => { $("statusbar").textContent = msg; };
@@ -891,9 +894,143 @@ async function initMap() {
                     : "Karte zeigt das gesamte Tempo-30-Netz.");
   });
 
+  await initStrassenListe();
+
   status(`Karte: ${roads.features.length} Straßenabschnitte, ` +
          `${pois ? pois.features.length : 0} Einrichtungen, ` +
          `${streetDocs.size} Straßen mit Ausschussdokumenten.`);
+}
+
+// ── Straßenverzeichnis (Suche + Liste unter der Karte) ───────────────────────
+//
+// Gegenstück zur Karte: Wer den Straßennamen kennt, soll ihn nicht erst auf
+// dem Stadtplan suchen müssen. Grundlage ist das amtliche Straßenverzeichnis
+// (geo/strassen.json), gruppiert nach Stadtteilbeirat — das ist die Einheit,
+// in der über den Stadtteil geredet wird. Ein Klick zeigt die Dokumente zur
+// Straße und hebt sie auf der Karte hervor.
+
+let strassenVerzeichnis = null;
+let strasseHighlight = null;
+
+async function initStrassenListe() {
+  if (strassenVerzeichnis !== null) return;
+  const data = await loadGeo("strassen.json");
+  strassenVerzeichnis = data ?? false;
+  const box = $("strassen-liste-box");
+  if (!data) {
+    box.innerHTML = `<p class="hint">Das Straßenverzeichnis fehlt — es entsteht mit
+      <code>python tools/fetch_geodata.py</code> als <code>geo/strassen.json</code>.</p>`;
+    return;
+  }
+
+  // Nach Beirat gruppieren; Straßen ohne Zuordnung sammeln sich in einer
+  // eigenen Gruppe, statt stillschweigend zu verschwinden.
+  const gruppen = new Map();
+  for (const s of data.strassen) {
+    const beiraete = s.beiraete?.length ? s.beiraete : ["ohne Beiratszuordnung"];
+    for (const b of beiraete) {
+      if (!gruppen.has(b)) gruppen.set(b, []);
+      gruppen.get(b).push(s);
+    }
+  }
+  const sortiert = [...gruppen.entries()].sort((a, b) => b[1].length - a[1].length);
+  const mitDok = data.strassen.filter((s) => streetDocs.has(s.name)).length;
+
+  box.innerHTML = `<details id="strassen-details">
+    <summary><strong>${data.strassen.length} Straßen</strong> im Stadtgebiet${
+      mitDok ? ` · ${mitDok} in Ausschussdokumenten` : ""}</summary>
+    <div id="strassen-liste">
+      ${sortiert.map(([beirat, liste]) => `
+        <section class="bezirk" data-beirat="${escHtml(beirat)}">
+          <h4>${escHtml(beirat)} <span class="anz">${liste.length}</span></h4>
+          <div class="street-chips">
+            ${liste.map((s) => {
+              const n = streetDocs.get(s.name) ?? 0;
+              const grenz = (s.beiraete?.length ?? 0) > 1;
+              return `<button type="button" class="chip-street" data-street="${escHtml(s.name)}"
+                data-docs="${n}"
+                title="${escHtml(grenz ? "Grenzlage, auch in: " + s.beiraete.filter((x) => x !== beirat).join(", ")
+                                       : beirat)}${n ? ` · in ${n} Dokument${n === 1 ? "" : "en"}` : ""}">
+                ${escHtml(s.name)}${grenz ? ' <span class="grenz">↔</span>' : ""}
+                ${n ? `<span class="anzahl">${n}</span>` : ""}
+              </button>`;
+            }).join("")}
+          </div>
+        </section>`).join("")}
+    </div>
+    <p class="quelle">Straßenverzeichnis: ${escHtml(data.quelle ?? "Stadt Erlangen")}
+      ${data.stand ? ` · Stand ${escHtml(data.stand)}` : ""}</p>
+  </details>`;
+
+  for (const btn of box.querySelectorAll(".chip-street")) {
+    btn.addEventListener("click", () => {
+      box.querySelector(".chip-street.active")?.classList.remove("active");
+      btn.classList.add("active");
+      zeigeStrasse(btn.dataset.street);
+    });
+  }
+
+  const filter = $("strassen-filter");
+  const nurDok = $("nur-dokumente");
+  const zaehlen = () => {
+    const qv = filter.value.trim().toLowerCase();
+    const nur = nurDok.checked;
+    const sichtbar = new Set();
+    for (const sec of box.querySelectorAll(".bezirk")) {
+      let inSec = 0;
+      for (const btn of sec.querySelectorAll(".chip-street")) {
+        const treffer = (!qv || btn.dataset.street.toLowerCase().includes(qv))
+                        && (!nur || btn.dataset.docs !== "0");
+        btn.hidden = !treffer;
+        if (treffer) { inSec++; sichtbar.add(btn.dataset.street); }
+      }
+      sec.hidden = inSec === 0;
+    }
+    $("strassen-count").textContent = (qv || nur)
+      ? `${sichtbar.size} von ${data.strassen.length}` : `${data.strassen.length} Straßen`;
+    // Beim Suchen die Liste aufklappen, sonst sieht man die Treffer nicht.
+    if (qv || nur) $("strassen-details").open = true;
+  };
+  filter.addEventListener("input", zaehlen);
+  nurDok.addEventListener("change", zaehlen);
+  filter.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Enter") return;
+    ev.preventDefault();
+    box.querySelector(".bezirk:not([hidden]) .chip-street:not([hidden])")?.click();
+  });
+  zaehlen();
+}
+
+/**
+ * Straße auf der Karte hervorheben und die Dokumente dazu anzeigen.
+ * Die Geometrie kommt aus den bereits gezeichneten Layern (streetLayers) —
+ * eine Straße besteht dort aus vielen Abschnitten.
+ */
+function zeigeStrasse(name) {
+  const layers = streetLayers.get(name);
+  const treffer = $("strassen-treffer");
+  const anzahl = streetDocs.get(name) ?? 0;
+
+  if (strasseHighlight) { map.removeLayer(strasseHighlight); strasseHighlight = null; }
+  if (layers?.length) {
+    const gruppe = L.featureGroup(layers.map((l) => L.geoJSON(l.toGeoJSON(), {
+      style: { color: "#eb6834", weight: 7, opacity: 0.95 } })));
+    strasseHighlight = gruppe.addTo(map);
+    map.fitBounds(gruppe.getBounds(), { padding: [40, 40], maxZoom: 17 });
+  }
+
+  treffer.innerHTML = `<div class="treffer-box">
+    <h4>${escHtml(name)}</h4>
+    ${anzahl
+      ? `<p class="t-intro">In ${anzahl} Ausschussdokument${anzahl === 1 ? "" : "en"} genannt —
+           <button type="button" id="strasse-docs" class="link-btn">Dokumente in der Liste anzeigen</button></p>`
+      : `<p class="t-intro">In den vorliegenden Ausschussdokumenten nicht genannt.</p>`}
+    ${layers?.length ? "" : `<p class="t-intro">Kein Tempo-30-Abschnitt hinterlegt —
+      die Karte zeigt nur Tempo-30-, Tempo-20- und verkehrsberuhigte Straßen.</p>`}
+  </div>`;
+  $("strasse-docs")?.addEventListener("click", () => openStreet(name));
+  status(anzahl ? `„${name}“ — ${anzahl} Ausschussdokument(e).`
+                : `„${name}“ — keine Ausschussdokumente.`);
 }
 
 /** Alle Dokumente, die eine bestimmte Straße nennen — in die Trefferliste. */
@@ -1047,9 +1184,128 @@ function gremienEintrag(t) {
   </div>`;
 }
 
+// ── Ämter & Zuständigkeiten ──────────────────────────────────────────────────
+//
+// Der Ausschuss beschließt, ausgeführt wird in den Fachämtern. Der Tab erklärt
+// den Aufbau der Stadtverwaltung (Oberbürgermeister → acht Referate →
+// Fachämter mit Amtsnummer) nach dem Geschäftsverteilungsplan und beantwortet
+// die praktische Frage, wer für ein Anliegen zuständig ist. Bewusst ohne
+// Durchwahlen — dafür verlinkt die Seite die Ämter-Suche der Stadt.
+
+let aemterData = null;
+
+/** content/<name>.json laden; im lokalen Dev liegt content/ eine Ebene höher. */
+async function loadContent(name) {
+  for (const url of [`content/${name}.json?v=${CONTENT_VERSION}`,
+                     `../content/${name}.json?v=${CONTENT_VERSION}`]) {
+    try {
+      const r = await fetch(url);
+      if (r.ok) return await r.json();
+    } catch { /* nächster Pfad */ }
+  }
+  return null;
+}
+
+async function renderAemter() {
+  const box = $("aemter-view");
+  if (aemterData === null) {
+    status("Lade Ämterstruktur …");
+    aemterData = await loadContent("aemter") ?? false;
+  }
+  if (!aemterData) {
+    box.innerHTML = `<p class="hint">Die Ämterstruktur fehlt — sie liegt in
+      <code>content/aemter.json</code> und wird beim Deploy mitkopiert.</p>`;
+    status("Ämterdaten nicht gefunden.");
+    return;
+  }
+  const data = aemterData;
+  // Für den UVPA einschlägige Referate hervorheben (Planen/Bauen, Umwelt,
+  // öffentlicher Raum) — die übrigen bleiben sichtbar, nur ohne Betonung.
+  const schwerpunkt = new Set(data.schwerpunkt_referate || []);
+
+  const amtLabel = (a) =>
+    `<span class="amt-name">${escHtml(a.name)}</span>`
+    + (a.nr ? `<span class="amt-nr">${escHtml(a.nr)}</span>` : "")
+    + (a.leitung ? `<span class="amt-leitung">${escHtml(a.leitung)}</span>` : "");
+
+  const referateGrid = data.referate.map((r, idx) => {
+    const nrs = r.aemter.map((a) => a.nr).filter(Boolean).join(", ");
+    const wichtig = schwerpunkt.has(r.referat);
+    return `<button type="button" data-ref-card="ref-card-${idx}"
+      class="org-card org-card-ref${wichtig ? " org-card-schwerpunkt" : ""}"
+      title="Zu ${escHtml(r.referat)} springen">
+      <div class="org-ref-tag">${escHtml(r.referat)}${
+        wichtig ? '<span class="org-ref-star" title="für den UVPA besonders einschlägig">★</span>' : ""}</div>
+      <div class="org-ref-title">${escHtml(r.bereich)}</div>
+      <div class="org-ref-leitung">${escHtml(r.leitung)}</div>
+      ${nrs ? `<div class="org-ref-aemter">Ämter: ${escHtml(nrs)}</div>` : ""}
+    </button>`;
+  }).join("");
+
+  box.innerHTML = `
+    <h2 class="section-title">🏢 Ämter &amp; Zuständigkeiten</h2>
+    ${data.intro ? `<p class="section-intro">${escHtml(data.intro)}</p>` : ""}
+    <div class="map-actions">
+      <a class="btn-primary" href="${escHtml(safeUrl(data.aemter_uebersicht_url))}"
+         target="_blank" rel="noopener">Ämter-Suche, Kontakt &amp; Öffnungszeiten ↗</a>
+    </div>
+
+    ${data.relevant?.length ? `
+      <section class="amt-schnelluebersicht">
+        <h3 class="sub-head">Schnellübersicht: Wer ist wofür zuständig?</h3>
+        <ul class="zust-list">${data.relevant.map((r) => `<li>
+          <span class="z-thema">${escHtml(r.thema)}</span>
+          <span class="z-amt">${escHtml(r.amt)}</span></li>`).join("")}</ul>
+      </section>` : ""}
+
+    <div class="orgchart-container">
+      <h3 class="orgchart-title">📊 Organigramm der Stadtverwaltung Erlangen</h3>
+      <div class="orgchart">
+        <div class="org-node-top">
+          <div class="org-card org-card-ob">
+            <div class="org-role">Oberbürgermeister</div>
+            <div class="org-name">${escHtml(data.referate[0]?.leitung?.split(" (")[0] ?? "")}</div>
+            <div class="org-sub">Leitung der Stadtverwaltung Erlangen</div>
+          </div>
+        </div>
+        <div class="org-tree-line"></div>
+        <div class="org-referate-grid">${referateGrid}</div>
+      </div>
+    </div>
+
+    <section class="amt-structure">
+      <h3 class="sub-head">Aufbau der Stadtverwaltung — die Referate im Detail</h3>
+      <div class="cards">
+        ${data.referate.map((r, idx) => `<div class="card ref-card${
+          schwerpunkt.has(r.referat) ? " ref-card-schwerpunkt" : ""}" id="ref-card-${idx}">
+          <span class="c-tag">${escHtml(r.referat)}</span>
+          <div class="c-title">${escHtml(r.bereich)}</div>
+          <div class="c-zust">${escHtml(r.leitung)}</div>
+          <ul class="amt-list">${r.aemter.map((a) => `<li>${amtLabel(a)}</li>`).join("")}</ul>
+        </div>`).join("")}
+      </div>
+    </section>
+
+    ${data.stand ? `<p class="quelle">Quelle: Geschäftsverteilungsplan der Stadt Erlangen ·
+      ${escHtml(data.stand)}</p>` : ""}`;
+
+  // Klick auf eine Organigramm-Kachel springt zur zugehörigen Detailkarte.
+  box.querySelector(".org-referate-grid")?.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-ref-card]");
+    const target = btn && $(btn.getAttribute("data-ref-card"));
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    target.classList.add("ref-card-highlight");
+    setTimeout(() => target.classList.remove("ref-card-highlight"), 1800);
+  });
+
+  const n = data.referate.reduce((s, r) => s + r.aemter.length, 0);
+  status(`${data.referate.length} Referate mit ${n} Ämtern und Einrichtungen.`);
+}
+
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 
-const TABS = ["doc", "net", "map", "gremien"];
+const TABS = ["doc", "net", "map", "gremien", "aemter"];
 
 async function activateTab(which) {
   for (const t of TABS) {
@@ -1066,6 +1322,8 @@ async function activateTab(which) {
     else map.invalidateSize();
   } else if (which === "gremien") {
     await renderFremdeGremien();
+  } else if (which === "aemter") {
+    await renderAemter();
   }
 }
 

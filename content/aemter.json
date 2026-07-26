@@ -1,0 +1,323 @@
+{
+  "intro": "So ist die Stadtverwaltung Erlangen gegliedert: An der Spitze steht der Oberbürgermeister, darunter bündeln acht Referate die Fachämter. Für die Arbeit des Umwelt-, Verkehrs- und Planungsausschusses sind vor allem Referat VI (Planen und Bauen), Referat VII (Umwelt und Klimaschutz) und Referat VIII (Pflege öffentlicher Raum) einschlägig — sie sind unten hervorgehoben. Die Schnellübersicht am Ende ordnet typische Ausschussthemen dem zuständigen Amt zu.",
+  "stand": "Stand: 21. Mai 2026",
+  "aemter_uebersicht_url": "https://erlangen.de/themenseite/service/aemter",
+  "relevant": [
+    {
+      "thema": "Bebauungspläne, Flächennutzungsplan, Stadtentwicklung",
+      "amt": "Amt für Stadtplanung und Mobilität (61)"
+    },
+    {
+      "thema": "Verkehrsplanung, Radverkehr, ÖPNV, Stadt-Umland-Bahn",
+      "amt": "Amt für Stadtplanung und Mobilität (61)"
+    },
+    {
+      "thema": "Straßenbau, Geh- und Radwege, Brücken, Baustellen",
+      "amt": "Tiefbauamt (66)"
+    },
+    {
+      "thema": "Verkehrszeichen, Tempo 30, Parkregelungen, Verkehrsrecht",
+      "amt": "Tiefbauamt (66) / Bürgeramt (33)"
+    },
+    {
+      "thema": "Straßenbeleuchtung, Straßenreinigung, Winterdienst",
+      "amt": "Betrieb für Stadtgrün, Abfallwirtschaft und Straßenreinigung (EB77)"
+    },
+    {
+      "thema": "Grünanlagen, Straßenbäume, Spielplätze, Friedhöfe",
+      "amt": "Betrieb für Stadtgrün, Abfallwirtschaft und Straßenreinigung (EB77)"
+    },
+    {
+      "thema": "Klimaschutz, Immissionsschutz, Lärm, Luftreinhaltung",
+      "amt": "Amt für Umweltschutz und Energiefragen (31)"
+    },
+    {
+      "thema": "Naturschutz, Artenschutz, Gewässer, Baumschutzverordnung",
+      "amt": "Amt für Umweltschutz und Energiefragen (31)"
+    },
+    {
+      "thema": "Bauanträge, Baugenehmigungen, Denkmalschutz",
+      "amt": "Bauaufsichtsamt (63)"
+    },
+    {
+      "thema": "Abwasser, Kanäle, Entwässerung, Starkregenvorsorge",
+      "amt": "Entwässerungsbetrieb (EBE)"
+    },
+    {
+      "thema": "Städtische Gebäude, Schulbau, Sanierungen",
+      "amt": "Amt für Gebäudemanagement (24)"
+    },
+    {
+      "thema": "Grundstücke, Ankauf, Erbbaurecht, Liegenschaften",
+      "amt": "Liegenschaftsamt (23)"
+    },
+    {
+      "thema": "Abfallwirtschaft, Wertstoffhöfe, Müllgebühren",
+      "amt": "Betrieb für Stadtgrün, Abfallwirtschaft und Straßenreinigung (EB77)"
+    },
+    {
+      "thema": "Wirtschaftsförderung, Gewerbegebiete, Ansiedlungen",
+      "amt": "Wirtschaftsförderung und Arbeit (Ref. II)"
+    },
+    {
+      "thema": "Stadtteilarbeit, Bürgerbeteiligung, Stadtteilbeiräte",
+      "amt": "Amt für Stadtteilarbeit (41)"
+    },
+    {
+      "thema": "Sitzungsdienst, Ratsinformationssystem, Gremienbetreuung",
+      "amt": "Bürgermeister- und Presseamt (13)"
+    }
+  ],
+  "schwerpunkt_referate": [
+    "Referat VI",
+    "Referat VII",
+    "Referat VIII"
+  ],
+  "referate": [
+    {
+      "referat": "Geschäftsbereich OBM",
+      "bereich": "Oberbürgermeister",
+      "leitung": "Jörg Volleth (Oberbürgermeister)",
+      "aemter": [
+        {
+          "name": "Bürgermeister- und Presseamt",
+          "nr": "13",
+          "leitung": "Sabine Lotter"
+        },
+        {
+          "name": "Revisionsamt",
+          "nr": "14",
+          "leitung": "Thorsten Liebetruth"
+        },
+        {
+          "name": "Anti-Korruptionsbeauftragter",
+          "leitung": "Thorsten Liebetruth"
+        },
+        {
+          "name": "Beauftragter nach Hinweisgeberschutzgesetz",
+          "leitung": "Thorsten Liebetruth"
+        },
+        {
+          "name": "Datenschutzbeauftragte",
+          "leitung": "Juliane Kreller"
+        },
+        {
+          "name": "Gleichstellungsbeauftragte",
+          "leitung": "Dr. Nora Hahn-Hobeck, Réka Lörincz"
+        },
+        {
+          "name": "Informationssicherheitsbeauftragter",
+          "leitung": "Jan Berghold"
+        }
+      ]
+    },
+    {
+      "referat": "Referat I",
+      "bereich": "Digitalisierung, Sport, Brand- und Katastrophenschutz",
+      "leitung": "Eva Linhart (2. Bürgermeisterin)",
+      "aemter": [
+        {
+          "name": "Amt für Digitalisierung und Informationstechnik",
+          "nr": "17",
+          "leitung": "Jan Berghold"
+        },
+        {
+          "name": "Amt für Brand- und Katastrophenschutz",
+          "nr": "37",
+          "leitung": "Friedhelm Weidinger"
+        },
+        {
+          "name": "Amt für Sport und Gesundheitsförderung",
+          "nr": "52",
+          "leitung": "Ulrich Klement"
+        }
+      ]
+    },
+    {
+      "referat": "Referat II",
+      "bereich": "Wirtschaft und Finanzen",
+      "leitung": "Konrad Beugel (Berufsmäßiger Stadtrat)",
+      "aemter": [
+        {
+          "name": "Stadtkämmerei",
+          "nr": "20",
+          "leitung": "Heike Bräuer"
+        },
+        {
+          "name": "Liegenschaftsamt",
+          "nr": "23",
+          "leitung": "Marco von Dobschütz-Dietl"
+        },
+        {
+          "name": "Wirtschaftsförderung und Arbeit"
+        }
+      ]
+    },
+    {
+      "referat": "Referat III",
+      "bereich": "Recht und Personal",
+      "leitung": "Thomas Ternes (Berufsmäßiger Stadtrat)",
+      "aemter": [
+        {
+          "name": "Personal- und Organisationsamt",
+          "nr": "11",
+          "leitung": "Marcus Redel"
+        },
+        {
+          "name": "Rechtsamt",
+          "nr": "30",
+          "leitung": "Juliane Kreller"
+        },
+        {
+          "name": "Bürgeramt",
+          "nr": "33",
+          "leitung": "Dr. Martin Holzinger"
+        },
+        {
+          "name": "Standesamt",
+          "nr": "34",
+          "leitung": "Yassin Velasco"
+        }
+      ]
+    },
+    {
+      "referat": "Referat IV",
+      "bereich": "Kultur, Bildung und Freizeit",
+      "leitung": "Anke Steinert-Neuwirth (Berufsmäßige Stadträtin)",
+      "aemter": [
+        {
+          "name": "Amt für Stadtteilarbeit",
+          "nr": "41",
+          "leitung": "Stephan Beck"
+        },
+        {
+          "name": "Stadtbibliothek",
+          "nr": "42",
+          "leitung": "Dr. Adrian La Salvia"
+        },
+        {
+          "name": "Volkshochschule",
+          "nr": "43",
+          "leitung": "Markus Bassenhorst"
+        },
+        {
+          "name": "Theater – schauspiel erlangen",
+          "nr": "44",
+          "leitung": "Jonas Knecht"
+        },
+        {
+          "name": "Stadtarchiv",
+          "nr": "45",
+          "leitung": "Dr. Andreas Jobst"
+        },
+        {
+          "name": "Stadtmuseum",
+          "nr": "46",
+          "leitung": "Brigitte Korn"
+        },
+        {
+          "name": "Kulturamt",
+          "nr": "47",
+          "leitung": "Anne Reimann"
+        }
+      ]
+    },
+    {
+      "referat": "Referat V",
+      "bereich": "Jugend, Familie und Soziales",
+      "leitung": "Dieter Rosner (Berufsmäßiger Stadtrat)",
+      "aemter": [
+        {
+          "name": "Sozialamt",
+          "nr": "50",
+          "leitung": "Annett Sobek"
+        },
+        {
+          "name": "Stadtjugendamt",
+          "nr": "51",
+          "leitung": "Kerstin Knörl"
+        },
+        {
+          "name": "Erlanger Jobcenter (EJC)",
+          "leitung": "Manuela Ramming (Werkleitung)"
+        }
+      ]
+    },
+    {
+      "referat": "Referat VI",
+      "bereich": "Planen und Bauen",
+      "leitung": "Harald Lang (Berufsmäßiger Stadtrat)",
+      "aemter": [
+        {
+          "name": "Amt für Gebäudemanagement",
+          "nr": "24",
+          "leitung": "Florian Engel"
+        },
+        {
+          "name": "Amt für Stadtplanung und Mobilität",
+          "nr": "61",
+          "leitung": "Tilmann Lohse"
+        },
+        {
+          "name": "Bauaufsichtsamt",
+          "nr": "63",
+          "leitung": "Mathias Schenkl"
+        },
+        {
+          "name": "Tiefbauamt",
+          "nr": "66",
+          "leitung": "Andreas Pfeil"
+        }
+      ]
+    },
+    {
+      "referat": "Referat VII",
+      "bereich": "Umwelt und Klimaschutz",
+      "leitung": "Sabine Bock (Berufsmäßige Stadträtin)",
+      "aemter": [
+        {
+          "name": "Amt für Umweltschutz und Energiefragen",
+          "nr": "31",
+          "leitung": "Reiner Lennemann"
+        },
+        {
+          "name": "Amt für Veterinärwesen und Lebensmittelüberwachung",
+          "nr": "39",
+          "leitung": "Dr. Nikola-Simone Franz-Haas"
+        },
+        {
+          "name": "Entwässerungsbetrieb (EBE)",
+          "leitung": "Wolfgang Fuchs (Werkleitung)"
+        }
+      ]
+    },
+    {
+      "referat": "Referat VIII",
+      "bereich": "Schulen und Pflege öffentlicher Raum",
+      "leitung": "Christian Lehrmann (3. Bürgermeister)",
+      "aemter": [
+        {
+          "name": "Schulverwaltungsamt",
+          "nr": "40",
+          "leitung": "Brigitte Bayer"
+        },
+        {
+          "name": "Marie-Therese-Gymnasium",
+          "nr": "40M"
+        },
+        {
+          "name": "Fachschule für Techniker",
+          "nr": "40T"
+        },
+        {
+          "name": "Wirtschaftsschule im Röthelheimpark",
+          "nr": "40W"
+        },
+        {
+          "name": "Betrieb für Stadtgrün, Abfallwirtschaft und Straßenreinigung (EB77)",
+          "leitung": "Tino Bachmeier (weitere Werkleitung)"
+        }
+      ]
+    }
+  ]
+}

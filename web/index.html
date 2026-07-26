@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H"
         crossorigin="anonymous">
-  <link rel="stylesheet" href="style.css?v=19">
+  <link rel="stylesheet" href="style.css?v=20">
   <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.34.0/dist/cytoscape.min.js"
           integrity="sha384-K+k+ywfDuvV9dwg+bwsVE0WGkrTnqFamaER+ydBgMFQTtlI0jdI9no9AjkQHwh/T"
           crossorigin="anonymous"></script>
@@ -101,8 +101,9 @@
         <button id="mobile-back" type="button" title="Zurück zur Trefferliste">‹ Liste</button>
         <button id="tab-doc" class="active" type="button">Dokument</button>
         <button id="tab-net" type="button">Netzwerk</button>
-        <button id="tab-map" type="button">Karte</button>
+        <button id="tab-map" type="button">Straße &amp; Karte</button>
         <button id="tab-gremien" type="button">Andere Gremien</button>
+        <button id="tab-aemter" type="button">Ämter</button>
       </nav>
 
       <div id="panel-doc" class="panel">
@@ -133,6 +134,16 @@
       </div>
 
       <div id="panel-map" class="panel" hidden>
+        <!-- Straßensuche über dem Kartenbild: Straße wählen → Dokumente dazu
+             und die Straße auf der Karte hervorgehoben. -->
+        <div class="street-search">
+          <input id="strassen-filter" type="search" placeholder="Straße suchen …"
+                 aria-label="Straße suchen">
+          <label class="nur-dok"><input type="checkbox" id="nur-dokumente">
+            nur mit Ausschussdokumenten</label>
+          <span id="strassen-count"></span>
+        </div>
+        <div id="strassen-treffer"></div>
         <div id="map"></div>
         <div id="map-legend">
           <div class="ml-row">
@@ -162,10 +173,17 @@
             beide zeigen daher das gemeinsame Gebiet.
           </p>
         </div>
+        <!-- Amtliches Straßenverzeichnis, nach Stadtteilbeirat gruppiert.
+             Wird von app.js aus geo/strassen.json gefüllt. -->
+        <div id="strassen-liste-box"></div>
       </div>
 
       <div id="panel-gremien" class="panel" hidden>
         <div id="gremien-view"></div>
+      </div>
+
+      <div id="panel-aemter" class="panel" hidden>
+        <div id="aemter-view"></div>
       </div>
     </section>
   </main>
@@ -175,6 +193,6 @@
     <span id="version"></span>
   </footer>
 
-  <script type="module" src="app.js?v=19"></script>
+  <script type="module" src="app.js?v=20"></script>
 </body>
 </html>

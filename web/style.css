@@ -27,6 +27,14 @@
   --m-living: #104281;   /* Blau 650 */
   --m-cond: #eb6834;     /* Akzent orange */
   --m-poi: #52514e;      /* neutrale Tinte */
+
+  /* Aliase für die aus SBR-Büchenbach übernommenen Sektionen (Ämter,
+     Straßenverzeichnis). Dort trägt Grün die Leitfarbe; im UVPA ist es das
+     Blau der Tagesordnungspunkte — beide Werte stammen aus der bereits
+     validierten Palette oben, es kommt keine neue Farbe hinzu. */
+  --accent: #2a78d6;     /* = --c-top, Leitfarbe */
+  --accent-2: #104281;   /* = --m-living, dunkleres Blau für Sekundäres */
+  --warn: #eda100;       /* = --c-vorlage */
 }
 
 * { box-sizing: border-box; }
@@ -142,7 +150,11 @@ main { flex: 1; display: flex; min-height: 0; }
 #tabs {
   display: flex; gap: .25rem; padding: .4rem .8rem 0;
   background: var(--surface-1); border-bottom: 1px solid var(--hairline);
+  /* Fünf Tabs passen auf schmalen Geräten nicht nebeneinander — die Leiste
+     scrollt seitwärts, statt die Seite als Ganzes zu verbreitern. */
+  overflow-x: auto;
 }
+#tabs button { flex: 0 0 auto; white-space: nowrap; }
 #tabs button {
   padding: .4rem 1.1rem; font-size: .85rem; cursor: pointer;
   border: 1px solid var(--hairline); border-bottom: none;
@@ -401,4 +413,211 @@ footer {
 @media (max-width: 420px) {
   #filterbar label { flex-basis: 100%; }
   header .sub { font-size: .72rem; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Aus SBR-Büchenbach übernommen und auf den UVPA-Zuschnitt angepasst:
+   „Ämter & Zuständigkeiten" (Organigramm + Schnellübersicht) sowie das
+   Straßenverzeichnis unter der Karte.
+   ════════════════════════════════════════════════════════════════════════ */
+
+#panel-aemter { overflow-y: auto; padding: .9rem 1.2rem 2.5rem; }
+#aemter-view { max-width: 62rem; }
+
+h2.section-title { font-size: 1.35rem; margin: .2rem 0 .3rem; }
+p.section-intro {
+  color: var(--ink-2); font-size: .9rem; line-height: 1.55;
+  margin: 0 0 1.2rem; max-width: 46rem;
+}
+h3.sub-head {
+  font-size: .8rem; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); margin: 1.6rem 0 .6rem;
+}
+.quelle { color: var(--muted); font-size: .74rem; margin-top: 1.4rem; }
+.map-actions { margin: .9rem 0; display: flex; gap: .6rem; flex-wrap: wrap; }
+.btn-primary {
+  display: inline-block; padding: .5rem .95rem; border-radius: 7px;
+  text-decoration: none; background: var(--accent); color: #fff;
+  font-size: .88rem; font-weight: 600; border: 1px solid var(--accent);
+}
+.btn-primary:hover { background: var(--accent-2); border-color: var(--accent-2); }
+
+/* Schnellübersicht: Thema → zuständiges Amt */
+.zust-list { list-style: none; margin: 0 0 .4rem; padding: 0; }
+.zust-list li {
+  display: flex; gap: .8rem; flex-wrap: wrap; justify-content: space-between;
+  padding: .45rem .8rem; border: 1px solid var(--hairline); border-radius: 7px;
+  background: var(--surface-1); margin-bottom: .35rem; font-size: .85rem;
+}
+.z-thema { color: var(--ink); }
+.z-amt { color: var(--accent); font-weight: 600; text-align: right; }
+
+/* Organigramm */
+.orgchart-container {
+  margin: 1.5rem 0 2rem; padding: 1.2rem 1.4rem;
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  border-radius: 10px; box-shadow: 0 2px 10px rgba(0, 0, 0, .02);
+}
+.orgchart-title { font-size: 1.05rem; font-weight: 700; margin: 0 0 1.2rem; color: var(--ink); }
+.orgchart { display: flex; flex-direction: column; align-items: center; width: 100%; }
+.org-node-top {
+  display: flex; justify-content: center; margin-bottom: 1.2rem;
+  position: relative; width: 100%;
+}
+.org-node-top::after {
+  content: ""; position: absolute; bottom: -1.2rem; left: 50%;
+  transform: translateX(-50%); width: 2px; height: 1.2rem; background: var(--accent);
+}
+.org-card-ob {
+  background: linear-gradient(135deg, #2a78d6 0%, #104281 100%); color: #fff;
+  padding: .85rem 1.6rem; border-radius: 8px; text-align: center;
+  box-shadow: 0 4px 14px rgba(42, 120, 214, .2); min-width: 260px; max-width: 380px;
+}
+.org-card-ob .org-role {
+  font-size: .74rem; text-transform: uppercase; letter-spacing: .06em;
+  opacity: .9; font-weight: 600;
+}
+.org-card-ob .org-name { font-size: 1.15rem; font-weight: 700; margin: .25rem 0; }
+.org-card-ob .org-sub { font-size: .78rem; opacity: .88; }
+.org-tree-line { width: 100%; height: 2px; background: var(--hairline); margin-bottom: 1.2rem; }
+.org-referate-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: .9rem; width: 100%;
+}
+.org-card-ref {
+  display: block; text-align: left; width: 100%; font: inherit; color: inherit;
+  cursor: pointer; background: var(--page); border: 1px solid var(--hairline);
+  border-left: 4px solid var(--muted); border-radius: 7px; padding: .75rem .9rem;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.org-card-ref:hover {
+  transform: translateY(-2px); border-color: var(--accent);
+  box-shadow: 0 4px 12px rgba(42, 120, 214, .12); background: var(--surface-1);
+}
+/* Für den UVPA einschlägige Referate: farbige Kante + Stern, der Rest bleibt neutral. */
+.org-card-schwerpunkt { border-left-color: var(--accent); }
+.org-ref-star { margin-left: .3rem; color: var(--warn); }
+.org-ref-tag {
+  font-size: .72rem; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .03em; margin-bottom: .2rem;
+}
+.org-card-schwerpunkt .org-ref-tag { color: var(--accent); }
+.org-ref-title { font-size: .88rem; font-weight: 700; color: var(--ink); line-height: 1.3; margin-bottom: .3rem; }
+.org-ref-leitung { font-size: .78rem; color: var(--ink-2); }
+.org-ref-aemter {
+  margin-top: .4rem; padding-top: .4rem; border-top: 1px dashed var(--hairline);
+  font-size: .72rem; color: var(--muted); font-weight: 500;
+}
+
+/* Referate im Detail */
+.amt-structure { margin-top: 1.6rem; }
+.cards { display: grid; gap: .8rem; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); }
+.card {
+  display: block; padding: .95rem 1.1rem; color: var(--ink);
+  background: var(--surface-1); border: 1px solid var(--hairline); border-radius: 9px;
+}
+.card .c-tag {
+  display: inline-block; font-size: .75rem; font-weight: 800; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: .35rem;
+}
+.ref-card-schwerpunkt .c-tag { color: var(--accent); }
+.card .c-title { font-weight: 700; font-size: 1rem; margin-bottom: .25rem; }
+.card .c-zust { color: var(--ink-2); font-size: .84rem; font-weight: 500; margin-top: .3rem; }
+.ref-card { scroll-margin-top: 1rem; transition: border-color .3s ease, box-shadow .3s ease; }
+.ref-card-schwerpunkt { border-left: 4px solid var(--accent); }
+.ref-card-highlight {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px var(--accent), 0 4px 16px rgba(42, 120, 214, .22) !important;
+}
+.amt-list {
+  list-style: none; margin: .6rem 0 0; padding: .55rem 0 0;
+  border-top: 1px solid var(--hairline);
+}
+.amt-list li { font-size: .83rem; line-height: 1.45; padding: .28rem 0; color: var(--ink-2); }
+.amt-name { font-weight: 600; color: var(--ink); }
+.amt-leitung { display: block; font-size: .76rem; color: var(--muted); margin-top: .05rem; }
+.amt-nr {
+  display: inline-block; font-size: .7rem; font-weight: 700; color: var(--muted);
+  background: var(--page); border: 1px solid var(--hairline); border-radius: 4px;
+  padding: 0 .3rem; margin-left: .25rem;
+}
+
+/* ── Straßenverzeichnis im Karten-Tab ─────────────────────────────────── */
+/* Der Tab trägt jetzt mehr als die Karte (Suche, Treffer, Straßenverzeichnis),
+   deshalb scrollt das Panel und die Karte steht im normalen Fluss mit fester
+   Höhe — vorher füllte sie das Panel absolut positioniert aus. */
+#panel-map { overflow-y: auto; }
+#panel-map #map {
+  position: relative; inset: auto;
+  height: 60vh; min-height: 18rem;
+  margin: 0 1rem; border: 1px solid var(--hairline); border-radius: 8px;
+}
+#panel-map #map-legend { position: static; border-top: 0; margin: .3rem 1rem 0; }
+.street-search {
+  display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;
+  margin: .7rem 1rem .6rem;
+}
+.street-search input {
+  flex: 1; max-width: 22rem; padding: .45rem .7rem; font-size: .9rem;
+  border: 1px solid var(--hairline); border-radius: 6px; background: var(--surface-1);
+}
+.nur-dok {
+  display: flex; align-items: center; gap: .35rem; font-size: .82rem;
+  color: var(--ink-2); cursor: pointer; white-space: nowrap;
+}
+#strassen-count { font-size: .78rem; color: var(--muted); }
+#strassen-treffer:not(:empty) { margin: 0 1rem .6rem; }
+.treffer-box {
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  border-radius: 8px; padding: .7rem .9rem;
+}
+.treffer-box h4 { margin: 0 0 .3rem; font-size: .98rem; }
+.t-intro { margin: 0; font-size: .83rem; color: var(--ink-2); }
+.link-btn {
+  background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+  color: var(--accent); text-decoration: underline;
+}
+#strassen-liste-box { padding: 0 1rem 1.5rem; }
+#strassen-details > summary {
+  cursor: pointer; font-size: .85rem; color: var(--ink-2);
+  padding: .5rem 0; border-top: 1px solid var(--hairline);
+}
+#strassen-liste { margin-top: .8rem; }
+.bezirk { margin-bottom: 1.3rem; }
+.bezirk h4 {
+  font-size: .82rem; font-weight: 600; color: var(--ink-2);
+  text-transform: uppercase; letter-spacing: .04em;
+  margin: 0 0 .5rem; padding-bottom: .3rem; border-bottom: 1px solid var(--hairline);
+}
+.bezirk h4 .anz { float: right; font-weight: 400; color: var(--muted); letter-spacing: 0; text-transform: none; }
+.street-chips { display: flex; flex-wrap: wrap; gap: .35rem; }
+.chip-street {
+  font-size: .8rem; padding: .25rem .7rem; cursor: pointer;
+  background: var(--page); color: var(--ink-2);
+  border: 1px solid var(--hairline); border-radius: 20px;
+}
+.chip-street:hover { border-color: var(--accent); color: var(--accent); }
+.chip-street.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip-street .grenz { color: var(--warn); font-weight: 700; }
+.chip-street.active .grenz { color: #fff; }
+.chip-street .anzahl {
+  display: inline-block; margin-left: .3rem; padding: 0 .32rem;
+  border-radius: 999px; background: var(--accent); color: #fff;
+  font-size: .68rem; font-weight: 700; line-height: 1.35;
+}
+.chip-street.active .anzahl { background: #fff; color: var(--accent); }
+
+/* Mobil: Auswahlfelder und Chips gut treffbar (16px verhindert iOS-Autozoom) */
+@media (max-width: 680px) {
+  #panel-aemter { padding: .8rem .8rem 2.5rem; }
+  /* Auf Mobil ist der Bildschirm knapp — Karte etwas flacher, Ränder weg. */
+  #panel-map #map { height: 52vh; margin: 0 .6rem; }
+  #panel-map #map-legend { margin: .3rem .6rem 0; }
+  .street-search { margin: .6rem .6rem .5rem; }
+  #strassen-liste-box { padding: 0 .6rem 1.5rem; }
+  .cards { grid-template-columns: 1fr; }
+  .org-referate-grid { grid-template-columns: 1fr; }
+  .street-search input { font-size: 1rem; padding: .5rem .65rem; min-height: 2.5rem; max-width: none; }
+  .chip-street { font-size: .9rem; padding: .4rem .8rem; }
+  .zust-list li { font-size: .95rem; padding: .6rem .8rem; }
 }
