@@ -13,10 +13,10 @@ import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1
 // Sichtbare App-Version (Fußzeile). Beim Ausliefern zusammen mit dem
 // ?v=…-Cache-Parameter in index.html erhöhen, damit Version und
 // tatsächlich geladener Code übereinstimmen.
-const APP_VERSION = "v21 · 2026-07-28";
+const APP_VERSION = "v22 · 2026-07-28";
 // Cache-Parameter für content/*.json — mit der App-Version mitziehen, damit
 // geänderte Inhalte nicht aus dem Browser-Cache kommen.
-const CONTENT_VERSION = "21";
+const CONTENT_VERSION = "22";
 
 const $ = (id) => document.getElementById(id);
 const status = (msg) => { $("statusbar").textContent = msg; };
@@ -1336,6 +1336,36 @@ function showResultList() {
   document.body.classList.remove("show-viewer");
 }
 
+// ── Startseite ───────────────────────────────────────────────────────────────
+// Die Kacheln sind die erste Ansicht: body.show-start blendet Filterleiste und
+// Zwei-Spalten-Ansicht aus. Jede Kachel nennt in data-ziel ihr Ziel — entweder
+// einen Tab, die Suche oder die Suche mit vorgewähltem Dokumenttyp.
+
+// Zusammenfassung des Bestands; steht in der Fußzeile, solange die Startseite
+// zu sehen ist. Wird nach dem Laden mit den echten Zahlen überschrieben.
+let startStatus = "Bereit.";
+
+function zeigeStart() {
+  document.body.classList.add("show-start");
+  showResultList();
+  status(startStatus);
+}
+
+async function oeffneKachel(ziel) {
+  document.body.classList.remove("show-start");
+  if (ziel === "suche" || ziel.startsWith("typ:")) {
+    if (ziel.startsWith("typ:")) {
+      $("f-type").value = ziel.slice(4);
+      await runSearch();
+    }
+    await activateTab("doc");
+    showResultList();          // Mobil: Trefferliste vor den Viewer holen
+    $("search-input").focus();
+    return;
+  }
+  await activateTab(ziel);
+}
+
 // ── Filter füllen ────────────────────────────────────────────────────────────
 
 async function populateFilters() {
@@ -1388,14 +1418,26 @@ try {
 
   // Suche/Filter führen auf Mobil zurück zur Trefferliste (sonst bliebe der
   // Viewer im Vordergrund und die neuen Treffer wären unsichtbar).
+  // Die Kopfzeilensuche steht auch auf der Startseite — eine Suche verlässt
+  // sie daher immer, sonst bliebe das Ergebnis hinter den Kacheln verborgen.
   $("search-form").addEventListener("submit", (ev) => {
-    ev.preventDefault(); showResultList(); runSearch();
+    ev.preventDefault();
+    document.body.classList.remove("show-start");
+    showResultList();
+    runSearch();
   });
   for (const id of ["f-thema", "f-antrag", "f-year", "f-type", "f-ort", "f-beirat", "f-sort"])
     $(id).addEventListener("change", () => { showResultList(); runSearch(); });
   for (const t of TABS)
     $(`tab-${t}`).addEventListener("click", () => activateTab(t));
   $("mobile-back").addEventListener("click", showResultList);
+
+  for (const kachel of document.querySelectorAll(".tile"))
+    kachel.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      oeffneKachel(kachel.dataset.ziel);
+    });
+  $("home-link").addEventListener("click", (ev) => { ev.preventDefault(); zeigeStart(); });
 
   await runSearch();   // Startansicht: neueste Dokumente
   $("boot").hidden = true;
@@ -1404,8 +1446,9 @@ try {
     `SELECT (SELECT count(*) FROM documents)::INT AS d,
             (SELECT count(*) FROM documents WHERE text IS NOT NULL)::INT AS t,
             (SELECT count(*) FROM nodes)::INT AS n`);
-  status(`Bereit — ${meta.d} Dokumente (${meta.t} mit Volltext), ${meta.n} Knoten. ` +
-         `Suche oben, Filter darunter.`);
+  startStatus = `Bereit — ${meta.d} Dokumente (${meta.t} mit Volltext), ${meta.n} Knoten. `
+    + `Wählen Sie einen Bereich oder suchen Sie oben.`;
+  status(startStatus);
 } catch (err) {
   bootMsg(`Fehler: ${err.message}`);
   console.error(err);

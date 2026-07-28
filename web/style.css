@@ -88,9 +88,17 @@ header {
   background: var(--surface-1);
   border-bottom: 1px solid var(--hairline);
 }
-header h1 { margin: 0; font-size: 1.05rem; white-space: nowrap; }
-header .sub { font-weight: 400; font-size: .8rem; color: var(--muted); }
-#search-form { display: flex; gap: .4rem; flex: 1; min-width: 20rem; }
+#home-link {
+  display: flex; align-items: center; gap: .6rem;
+  text-decoration: none; color: var(--ink); white-space: nowrap;
+}
+#home-link .logo { font-size: 1.5rem; }
+#home-link .brand {
+  font-weight: 700; font-size: 1.02rem; line-height: 1.1;
+  display: flex; flex-direction: column;
+}
+header .sub { font-weight: 400; font-size: .72rem; color: var(--muted); }
+#search-form { display: flex; gap: .4rem; flex: 1; min-width: 20rem; max-width: 40rem; margin-left: auto; }
 #search-input {
   flex: 1; padding: .45rem .7rem;
   border: 1px solid var(--hairline); border-radius: 6px; font-size: .95rem;
@@ -112,6 +120,34 @@ header .sub { font-weight: 400; font-size: .8rem; color: var(--muted); }
   padding: .2rem .35rem; border: 1px solid var(--hairline); border-radius: 5px;
   background: var(--surface-1); color: var(--ink); font-size: .8rem;
 }
+
+/* ── Startseite ──────────────────────────────────────────────────────
+   Landing nach dem Laden. Sie und die Suchoberfläche schließen einander
+   aus: body.show-start zeigt die Kacheln, sonst laufen Filterleiste und
+   Zwei-Spalten-Ansicht. Typografie aus dem SBR-Portal übernommen. */
+#start { display: none; flex: 1; overflow-y: auto; padding: 1.2rem 1.1rem 3rem; }
+body.show-start #start { display: block; }
+body.show-start #filterbar,
+body.show-start main { display: none; }
+
+.hero { max-width: 60rem; margin: 0 auto 1.4rem; }
+.hero h1 { font-size: 1.6rem; margin: .4rem 0 .3rem; line-height: 1.25; }
+.hero p { color: var(--ink-2); font-size: .95rem; line-height: 1.55; margin: 0; max-width: 44rem; }
+.tiles {
+  max-width: 60rem; margin: 0 auto;
+  display: grid; gap: .9rem;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+}
+.tile {
+  display: flex; gap: .8rem; align-items: flex-start;
+  padding: 1rem 1.1rem; text-decoration: none;
+  background: var(--surface-1); border: 1px solid var(--hairline); border-radius: 10px;
+  color: var(--ink); transition: border-color .12s, box-shadow .12s;
+}
+.tile:hover { border-color: var(--accent); box-shadow: 0 2px 14px rgba(11, 11, 11, .06); }
+.tile .icon { font-size: 2.1rem; line-height: 1; flex: none; }
+.tile .t-title { display: block; font-weight: 700; font-size: 1.12rem; margin-bottom: .2rem; color: var(--ink); }
+.tile .t-desc { display: block; color: var(--ink-2); font-size: .9rem; line-height: 1.48; font-weight: 400; }
 
 /* ── Hauptbereich ────────────────────────────────────────────────── */
 main { flex: 1; display: flex; min-height: 0; }
@@ -363,9 +399,10 @@ footer {
   header {
     flex-direction: column; align-items: stretch; gap: .5rem;
   }
-  header h1 { font-size: 1rem; white-space: normal; }
+  #home-link { justify-content: center; white-space: normal; }
   header .sub { display: block; margin-top: .1rem; }
-  #search-form { min-width: 0; }
+  #search-form { min-width: 0; max-width: none; margin-left: 0; }
+  #start { padding: 1rem .8rem 3rem; }
 
   #filterbar {
     gap: .5rem .9rem; padding: .5rem .8rem;
@@ -407,12 +444,65 @@ footer {
   #map-legend { font-size: .68rem; padding: .35rem .5rem; }
   .ml-row { gap: .3rem .7rem; }
   .ml-hint, .ml-credit { display: none; }
+
+  /* ── Größen und Fettdruck wie im SBR-Portal ──────────────────────
+     Auf dem Handy wird gelesen, nicht überflogen: Titel eine Stufe
+     größer und deutlich fetter, Fließtext auf Lesegröße und in der
+     kräftigeren Tinte. Die Desktop-Dichte der Suche bleibt unberührt. */
+  .hero h1 { font-size: 1.55rem; font-weight: 800; }
+  .hero p { font-size: 1.12rem; line-height: 1.55; }
+  p.section-intro { font-size: 1.08rem; line-height: 1.6; }
+
+  /* Startseite: zwei Kacheln nebeneinander, dafür jede prägnanter */
+  .tiles { grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .tile { padding: 1.15rem 1.2rem; }
+  .tile .icon { font-size: 2.3rem; }
+  .tile .t-title { font-size: 1.28rem; font-weight: 800; letter-spacing: -0.01em; margin-bottom: .35rem; }
+  .tile .t-desc { font-size: 1.05rem; line-height: 1.55; color: var(--ink); font-weight: 450; }
+
+  /* Referats-/Ämterkarten */
+  .cards { grid-template-columns: 1fr; gap: 1rem; }
+  .card { padding: 1.1rem 1.2rem; }
+  .card .c-tag { font-size: .88rem; font-weight: 800; letter-spacing: .04em; margin-bottom: .45rem; }
+  .card .c-title { font-size: 1.28rem; font-weight: 800; line-height: 1.38; }
+  .card .c-zust { font-size: 1.0rem; font-weight: 600; }
+  .amt-list li { font-size: 1.04rem; line-height: 1.58; }
+  .amt-name { font-size: 1.06rem; font-weight: 700; }
+  .amt-leitung { font-size: .92rem; font-weight: 500; }
+
+  /* Organigramm */
+  .org-card-ob { padding: 1rem 1.4rem; min-width: 0; }
+  .org-card-ob .org-role { font-size: .88rem; font-weight: 700; }
+  .org-card-ob .org-name { font-size: 1.38rem; font-weight: 800; }
+  .org-card-ob .org-sub { font-size: .94rem; }
+  .org-card-ref { padding: .95rem 1.1rem; }
+  .org-ref-tag { font-size: .9rem; font-weight: 800; }
+  .org-ref-title { font-size: 1.22rem; font-weight: 800; line-height: 1.35; margin: .25rem 0; }
+  .org-ref-leitung { font-size: 1.0rem; font-weight: 600; color: var(--ink-2); }
+  .org-ref-aemter { font-size: .92rem; font-weight: 600; color: var(--muted); margin-top: .35rem; }
+
+  /* Schnellübersicht Thema → Amt */
+  .zust-list li { padding: .65rem .9rem; font-size: 1.0rem; }
+  .z-thema { font-size: 1.04rem; font-weight: 650; }
+  .z-amt { font-size: 1.0rem; font-weight: 700; }
+
+  /* Andere Gremien: Tagesordnungspunkte */
+  .gr-kopf { font-size: .92rem; }
+  .gr-titel { font-size: 1.12rem; font-weight: 750; }
+  .gr-beschluss { font-size: .98rem; }
+
+  /* Leseansichten */
+  .doc-page { font-size: 1.06rem; line-height: 1.68; }
+  .doc-summary { font-size: 1.05rem; line-height: 1.68; }
+  .r-snippet { font-size: .98rem; }
 }
 
-/* Sehr schmale Geräte: Filter einspaltig */
+/* Sehr schmale Geräte: Filter einspaltig, Kacheln untereinander */
 @media (max-width: 420px) {
   #filterbar label { flex-basis: 100%; }
   header .sub { font-size: .72rem; }
+  .tiles { grid-template-columns: 1fr; }
+  .tile .t-title, .card .c-title { font-size: 1.35rem; }
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -521,7 +611,7 @@ h3.sub-head {
   text-transform: uppercase; color: var(--muted); margin-bottom: .35rem;
 }
 .ref-card-schwerpunkt .c-tag { color: var(--accent); }
-.card .c-title { font-weight: 700; font-size: 1rem; margin-bottom: .25rem; }
+.card .c-title { font-weight: 700; font-size: 1.08rem; margin-bottom: .25rem; }
 .card .c-zust { color: var(--ink-2); font-size: .84rem; font-weight: 500; margin-top: .3rem; }
 .ref-card { scroll-margin-top: 1rem; transition: border-color .3s ease, box-shadow .3s ease; }
 .ref-card-schwerpunkt { border-left: 4px solid var(--accent); }

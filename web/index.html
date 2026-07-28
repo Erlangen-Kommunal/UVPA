@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H"
         crossorigin="anonymous">
-  <link rel="stylesheet" href="style.css?v=21">
+  <link rel="stylesheet" href="style.css?v=22">
   <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.34.0/dist/cytoscape.min.js"
           integrity="sha384-K+k+ywfDuvV9dwg+bwsVE0WGkrTnqFamaER+ydBgMFQTtlI0jdI9no9AjkQHwh/T"
           crossorigin="anonymous"></script>
@@ -23,7 +23,9 @@
           integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH"
           crossorigin="anonymous"></script>
 </head>
-<body>
+<!-- show-start: die Startseite ist die erste Ansicht. app.js nimmt die Klasse
+     beim Klick auf eine Kachel oder bei einer Suche weg. -->
+<body class="show-start">
 
   <!-- Zugangs-Gate (erscheint nur, wenn auth.json deployt ist) -->
   <div id="gate" class="overlay" hidden>
@@ -52,13 +54,67 @@
   </div>
 
   <header>
-    <h1>UVPA Erlangen <span class="sub">Dokumentensuche · Umwelt-, Verkehrs- und Planungsausschuss</span></h1>
-    <form id="search-form">
+    <a id="home-link" href="#/" title="Zur Startseite">
+      <span class="logo">🏛️</span>
+      <span class="brand">UVPA&nbsp;Erlangen<span class="sub">Umwelt-, Verkehrs- und Planungsausschuss</span></span>
+    </a>
+    <form id="search-form" role="search">
       <input id="search-input" type="search"
-             placeholder="Volltextsuche, z. B. Radweg Büchenbach, VO/2024, Bebauungsplan 472 …">
+             placeholder="Volltextsuche, z. B. Radweg Büchenbach, VO/2024, Bebauungsplan 472 …"
+             aria-label="Dokumente durchsuchen">
       <button type="submit">Suchen</button>
     </form>
   </header>
+
+  <!-- Startseite: erste Ansicht nach dem Laden. Jede Kachel trägt in
+       data-ziel den Bereich, in den sie führt — app.js blendet die
+       Startseite aus und schaltet den passenden Tab bzw. Filter. -->
+  <div id="start">
+    <section class="hero">
+      <h1>Umwelt-, Verkehrs- und Planungsausschuss Erlangen</h1>
+      <p>Alles an einem Ort: die öffentlichen Unterlagen des Ausschusses seit 2020 im Volltext,
+      ihre Zusammenhänge im Netzwerk, die Straßen des Stadtgebiets mit Dokumentbezug, die
+      Beratungen anderer Gremien und die Zuständigkeiten der Ämter — damit die Arbeit im
+      Ausschuss leichter fällt.</p>
+    </section>
+    <nav class="tiles">
+      <a class="tile" href="#suche" data-ziel="suche">
+        <span class="icon">📄</span>
+        <span><span class="t-title">Dokumentensuche</span><span class="t-desc">Volltext über alle
+          Ausschussunterlagen seit 2020 — Vorlagen, Beschlüsse, Niederschriften, Anlagen.</span></span>
+      </a>
+      <a class="tile" href="#netzwerk" data-ziel="net">
+        <span class="icon">🕸️</span>
+        <span><span class="t-title">Netzwerk</span><span class="t-desc">Beziehungen zwischen
+          Tagesordnungspunkten, Vorlagen und Stadtteilen — rote Fäden über Sitzungen hinweg.</span></span>
+      </a>
+      <a class="tile" href="#karte" data-ziel="map">
+        <span class="icon">🗺️</span>
+        <span><span class="t-title">Straße &amp; Karte</span><span class="t-desc">Tempo 30, Tempo 20
+          und verkehrsberuhigte Bereiche, dazu das amtliche Straßenverzeichnis mit Dokumentbezug.</span></span>
+      </a>
+      <a class="tile" href="#gremien" data-ziel="gremien">
+        <span class="icon">🏛️</span>
+        <span><span class="t-title">Andere Gremien</span><span class="t-desc">Tagesordnungspunkte
+          aus Stadtrat und Bauausschuss — mit Hinweis auf gemeinsame Vorlagen.</span></span>
+      </a>
+      <a class="tile" href="#aemter" data-ziel="aemter">
+        <span class="icon">🏢</span>
+        <span><span class="t-title">Ämter &amp; Zuständigkeiten</span><span class="t-desc">Schnell
+          klären: Welches Amt ist für ein Anliegen zuständig?</span></span>
+      </a>
+      <a class="tile" href="#plaene" data-ziel="typ:PLAN">
+        <span class="icon">📐</span>
+        <span><span class="t-title">Pläne &amp; Konzepte</span><span class="t-desc">Bebauungspläne,
+          Rahmenpläne und Fachkonzepte, auf die der Ausschuss sich stützt.</span></span>
+      </a>
+      <a class="tile" href="#recht" data-ziel="typ:RECHT">
+        <span class="icon">⚖️</span>
+        <span><span class="t-title">Rechtsvorschriften</span><span class="t-desc">Satzungen und
+          Verordnungen der Stadt, die in den Beratungen eine Rolle spielen.</span></span>
+      </a>
+    </nav>
+  </div>
 
   <div id="filterbar">
     <label>Thema <select id="f-thema"><option value="">alle</option></select></label>
@@ -193,6 +249,6 @@
     <span id="version"></span>
   </footer>
 
-  <script type="module" src="app.js?v=21"></script>
+  <script type="module" src="app.js?v=22"></script>
 </body>
 </html>
