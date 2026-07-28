@@ -52,8 +52,13 @@ GREMIEN = {
     8: "Bauausschuss / Werkausschuss für den Entwässerungsbetrieb",
 }
 
-# Wahlperiode 2020–2026: 72 Monate ab Mai 2020. Für spätere Perioden anpassen.
-WP_START_JAHR, WP_START_MONAT, WP_MONATE = 2020, 5, 72
+# Wahlperioden: je Eintrag (Startjahr, Startmonat, Anzahl_Monate).
+# Neue Amtszeit ab Mai 2026 (Kommunalwahl Bayern 2026). 84 Monate = 7 Jahre Puffer;
+# das Skript holt nur Sitzungen, die das RIS tatsächlich kennt.
+PERIODEN = [
+    (2020, 5, 72),   # 2020-05 – 2026-04 (1. Wahlperiode)
+    (2026, 5, 84),   # 2026-05 – 2033-04 (2. Wahlperiode, Puffer)
+]
 
 # Wiederkehrende Formalpunkte ohne eigenen Sachgehalt. Anker auf Zeilenanfang,
 # damit „Anfragen zur Verkehrssituation …" nicht mitgefangen wird.
@@ -140,16 +145,17 @@ def hole(url: str, versuche: int = 3) -> str:
 
 
 def sitzungen(kgrnr: int) -> list[tuple[str, str]]:
-    """(ksinr, ISO-Datum) aller Sitzungen des Gremiums in der Wahlperiode."""
-    url = (f"{BASE}/si0046.asp?__cjahr={WP_START_JAHR}&__cmonat={WP_START_MONAT}"
-           f"&__canz={WP_MONATE}&smccont=85&__osidat=d&__kgsgrnr={kgrnr}&__cselect=65536")
-    seite = hole(url)
+    """(ksinr, ISO-Datum) aller Sitzungen des Gremiums über alle Wahlperioden."""
     out = []
-    for row in TOP_ROW_RE.findall(seite):
-        m = re.search(r"si0057\.asp\?__ksinr=(\d+)", row)
-        d = re.search(r"(\d{2})\.(\d{2})\.(\d{4})", row)
-        if m and d:
-            out.append((m.group(1), f"{d.group(3)}-{d.group(2)}-{d.group(1)}"))
+    for wp_jahr, wp_monat, wp_monate in PERIODEN:
+        url = (f"{BASE}/si0046.asp?__cjahr={wp_jahr}&__cmonat={wp_monat}"
+               f"&__canz={wp_monate}&smccont=85&__osidat=d&__kgsgrnr={kgrnr}&__cselect=65536")
+        seite = hole(url)
+        for row in TOP_ROW_RE.findall(seite):
+            m = re.search(r"si0057\.asp\?__ksinr=(\d+)", row)
+            d = re.search(r"(\d{2})\.(\d{2})\.(\d{4})", row)
+            if m and d:
+                out.append((m.group(1), f"{d.group(3)}-{d.group(2)}-{d.group(1)}"))
     return list(dict.fromkeys(out))
 
 
@@ -219,7 +225,10 @@ def main() -> None:
     alle.sort(key=lambda t: (t["datum"], t["gremium"], t["top"]), reverse=True)
     OUT_JSON.write_text(json.dumps({
         "stand": date.today().isoformat(),
-        "wahlperiode": {"label": "2020 – 2026", "von": "2020-05-01", "bis": "2026-04-30"},
+        "wahlperioden": [
+            {"label": "2020 – 2026", "von": "2020-05-01", "bis": "2026-04-30"},
+            {"label": "2026 –",      "von": "2026-05-01", "bis": None},
+        ],
         "quelle": "Ratsinformationssystem der Stadt Erlangen (SessionNet)",
         "gremien": {str(k): v for k, v in GREMIEN.items()},
         "tops": alle,

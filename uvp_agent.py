@@ -52,7 +52,7 @@ COMMITTEE_NUM = 15  # Umwelt-, Verkehrs- und Planungsausschuss / Werkausschuss E
 COMMITTEE_NAME = "Umwelt-, Verkehrs- und Planungsausschuss"
 DOWNLOAD_DIR = Path(__file__).parent
 INDEX_FILE = DOWNLOAD_DIR / "index.json"
-SCRAPE_YEARS = range(2020, 2027)
+SCRAPE_YEARS = range(2020, 2033)  # umfasst beide Wahlperioden (2020–2026 und 2026–2032)
 MODEL = "claude-opus-4-8"
 MAX_TOKENS = 4096
 

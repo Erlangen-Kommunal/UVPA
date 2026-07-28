@@ -13,10 +13,10 @@ import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1
 // Sichtbare App-Version (Fußzeile). Beim Ausliefern zusammen mit dem
 // ?v=…-Cache-Parameter in index.html erhöhen, damit Version und
 // tatsächlich geladener Code übereinstimmen.
-const APP_VERSION = "v20 · 2026-07-26";
+const APP_VERSION = "v21 · 2026-07-28";
 // Cache-Parameter für content/*.json — mit der App-Version mitziehen, damit
 // geänderte Inhalte nicht aus dem Browser-Cache kommen.
-const CONTENT_VERSION = "20";
+const CONTENT_VERSION = "21";
 
 const $ = (id) => document.getElementById(id);
 const status = (msg) => { $("statusbar").textContent = msg; };
@@ -1116,6 +1116,10 @@ async function renderFremdeGremien() {
   await ladeUvpaVorlagen();
 
   const alle = daten.tops.filter((t) => !t.routine);
+  // Seit der Kommunalwahl 2026 liefert fetch_gremien_tops.py mehrere Perioden;
+  // `wahlperiode` (Einzahl) bleibt als Fallback für ältere gremien_tops.json.
+  const perioden = (daten.wahlperioden || (daten.wahlperiode ? [daten.wahlperiode] : []))
+    .map((p) => p.label).filter(Boolean).join(" und ");
   const jahre = [...new Set(alle.map((t) => (t.datum || "").slice(0, 4)))].sort().reverse();
   const gremien = Object.values(daten.gremien);
 
@@ -1126,7 +1130,7 @@ async function renderFremdeGremien() {
 
   ziel.innerHTML = `<div class="gremien-kopf">
     <p class="hint">Tagesordnungspunkte aus ${escHtml(gremien.join(" und "))} der
-      Wahlperiode ${escHtml(daten.wahlperiode?.label || "")}. Erfasst sind Titel,
+      Wahlperiode${perioden.includes(" und ") ? "n" : ""} ${escHtml(perioden)}. Erfasst sind Titel,
       Beschluss und Vorlagennummer — <strong>keine Dokumente</strong>. Für den Volltext
       führt der Link ins Ratsinformationssystem.
       Wiederkehrende Formalpunkte (Anfragen, Mitteilungen) sind ausgeblendet.</p>
