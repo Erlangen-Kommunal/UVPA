@@ -711,3 +711,39 @@ h3.sub-head {
   .chip-street { font-size: .9rem; padding: .4rem .8rem; }
   .zust-list li { font-size: .95rem; padding: .6rem .8rem; }
 }
+
+/* ── Satzung & Recht: eigene, ganzseitige Ansicht ───────────────────────── */
+/* Rechtsvorschriften brauchen weder Trefferliste noch die volle Filterleiste —
+   in dieser Ansicht bleibt der Themenfilter der Seite als einziges Suchelement. */
+body.mode-recht #results,
+body.mode-recht #filterbar,
+body.mode-recht #mobile-back { display: none; }
+body.mode-recht #doc-view { max-width: 62rem; }
+
+.recht-filter {
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+  margin: 0 0 1.1rem; font-size: .85rem; color: var(--ink-2);
+}
+.recht-filter select {
+  padding: .3rem .45rem; border: 1px solid var(--hairline); border-radius: 6px;
+  background: var(--surface-1); color: var(--ink); font-size: .85rem; max-width: 22rem;
+}
+.recht-anzahl { color: var(--muted); font-size: .78rem; }
+
+/* Liste der Vorschriften — gleiche Anmutung wie im SBR-Portal */
+.reg-list { list-style: none; margin: 0; padding: 0; }
+.reg-list > li {
+  padding: .9rem 1rem; margin-bottom: .7rem; cursor: pointer;
+  background: var(--surface-1); border: 1px solid var(--hairline); border-radius: 9px;
+}
+.reg-list > li:hover { border-color: var(--c-plan); }
+.reg-list .r-title { font-weight: 700; font-size: 1rem; }
+.reg-list .r-desc { color: var(--ink-2); font-size: .84rem; line-height: 1.5; margin-top: .25rem; }
+.reg-list .r-meta { margin-top: .35rem; }
+
+/* Button, der wie ein Link aussieht (Zurück zur Übersicht in der Fußzeile) */
+.link-btn {
+  padding: 0; border: none; background: none; font: inherit;
+  color: var(--accent); cursor: pointer;
+}
+.link-btn:hover { text-decoration: underline; }

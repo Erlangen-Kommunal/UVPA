@@ -13,10 +13,10 @@ import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1
 // Sichtbare App-Version (Fußzeile). Beim Ausliefern zusammen mit dem
 // ?v=…-Cache-Parameter in index.html erhöhen, damit Version und
 // tatsächlich geladener Code übereinstimmen.
-const APP_VERSION = "v22 · 2026-07-28";
+const APP_VERSION = "v24 · 2026-07-29";
 // Cache-Parameter für content/*.json — mit der App-Version mitziehen, damit
 // geänderte Inhalte nicht aus dem Browser-Cache kommen.
-const CONTENT_VERSION = "22";
+const CONTENT_VERSION = "24";
 
 const $ = (id) => document.getElementById(id);
 const status = (msg) => { $("statusbar").textContent = msg; };
@@ -223,6 +223,10 @@ async function runSearch() {
     rows = (f.year || f.ort || f.antrag || f.beirat) ? [] : await q(
       `SELECT p.id, 'plan' AS kind, p.kind AS pkind, p.title AS top_label, p.themen, p.beschreibung
        FROM plans p WHERE p.kind = '${esc(registryKind)}' ${registryThemaCond} ORDER BY p.title`);
+    // Beim Recht führt die Liste dieselbe Reihenfolge wie die Übersicht rechts:
+    // erst die für den Ausschuss wichtigen Vorschriften, dann der Rest alphabetisch.
+    if (registryKind === "recht")
+      rows.sort((a, b) => (RECHT_RANG.get(a.id) ?? 99) - (RECHT_RANG.get(b.id) ?? 99));
     const label = registryKind === "recht" ? "Rechtsvorschriften" : "Pläne & Konzepte";
     renderResults(rows, `${rows.length} ${label}`);
     status((f.year || f.ort || f.antrag || f.beirat)
@@ -487,10 +491,24 @@ async function openPlan(planId) {
   const nodePrefix = p.kind === "recht" ? "r" : "p";
   const registryLocalId = p.id.slice(p.kind.length + 1);
   const relEdgeType = p.kind === "recht" ? "relates_to_recht" : "relates_to_plan";
-  const related = await q(
+  let related = await q(
     `SELECT n.label, n.date::VARCHAR AS date FROM edges e JOIN nodes n ON n.id = e.target
      WHERE e.source = '${nodePrefix}:${esc(registryLocalId)}' AND e.type = '${relEdgeType}'
      ORDER BY n.date DESC`);
+  // Die Verknüpfungen entstehen im GraphBuilder über einen groben Stichwort-
+  // abgleich (Titelanfang gegen TOP-Titel). Bei „Umwelt-, Verkehrs- und
+  // Planungsbeirat (Satzung)“ bleibt davon „Umwelt“ übrig — das trifft jeden
+  // zweiten Tagesordnungspunkt. Bei Rechtsvorschriften bleibt deshalb nur, was
+  // die Vorschrift selbst betrifft: Der Titel muss sie beim Namen nennen und
+  // die Rechtsform ansprechen (Änderung, Neuerlass, Aufhebung einer Satzung
+  // oder Verordnung) — Personalien im Gremium etwa zählen nicht dazu.
+  if (p.kind === "recht") {
+    const kern = p.title.split("(")[0].trim().toLowerCase();
+    related = related.filter((r) => {
+      const label = r.label.toLowerCase();
+      return label.includes(kern) && /satzung|verordnung/.test(label);
+    });
+  }
 
   const badge = REGISTRY_BADGE[p.kind] ?? "PLAN";
   const html = `<div class="doc-head">
@@ -509,13 +527,19 @@ async function openPlan(planId) {
           ${f.pages ? `<span class="meta"> · ${f.pages} S.</span>` : ""}
           ${f.quelle_url ? ` · <a href="${escHtml(safeUrl(f.quelle_url))}" target="_blank" rel="noopener">Original</a>` : ""}
         </li>`).join("") + `</ul></div>` : ""}
-    ${related.length ? `<div class="doc-page"><p class="doc-page-nr">Verknüpfte Tagesordnungspunkte (${related.length})</p><ul class="plan-files">` +
+    ${related.length ? `<div class="doc-page"><p class="doc-page-nr">${p.kind === "recht"
+      ? "Beratungen zu dieser Vorschrift" : "Verknüpfte Tagesordnungspunkte"} (${related.length})</p><ul class="plan-files">` +
       related.map((r) => `<li>${r.date ?? ""} — ${escHtml(shortLabel(r.label, 90))}</li>`).join("") + `</ul></div>` : ""}
+    ${p.kind === "recht" ? `<p class="quelle">
+      <button type="button" id="btn-recht-uebersicht" class="link-btn">‹ Übersicht „Satzung &amp; Recht“</button>
+      · Weitere Vorschriften im
+      <a href="${STADTRECHT_AZ_URL}" target="_blank" rel="noopener">Erlanger Stadtrecht (A–Z)</a>.</p>` : ""}
   </div>`;
 
   $("doc-view").innerHTML = html;
   for (const a of $("doc-view").querySelectorAll("[data-plan-file]"))
     a.addEventListener("click", (ev) => { ev.preventDefault(); openPlanFile(a.dataset.planFile, p.title, badge, p.id); });
+  $("btn-recht-uebersicht")?.addEventListener("click", () => renderRechtUebersicht());
 }
 
 async function openPlanFile(fileId, planTitle, badge = "PLAN", planId = null) {
@@ -545,6 +569,120 @@ async function openPlanFile(fileId, planTitle, badge = "PLAN", planId = null) {
     $("btn-pdf")?.classList.remove("active");
   });
   $("panel-doc").scrollTop = 0;
+}
+
+// ── Satzung & Recht ──────────────────────────────────────────────────────────
+//
+// Eigene, ganzseitige Ansicht (body.mode-recht blendet Trefferliste und
+// Filterleiste aus): Rechtsvorschriften haben kein Sitzungsjahr, keinen
+// Stadtteil und keinen Antragsteller — von der Filterleiste bleibt nur das
+// Thema übrig, und das steht als einziges Suchelement über der Liste.
+//
+// recht/registry.json erfasst das Ortsrecht mit Ausschussbezug alphabetisch.
+// Welche Vorschriften die Beratungen tatsächlich prägen, steht dagegen hier:
+// RECHT_WICHTIG bestimmt Reihenfolge und Kurztext (aus dem Satzungstext selbst:
+// Langtitel und Paragraphenfolge). Alles Übrige folgt darunter, am Ende der
+// Link ins gesamte Erlanger Stadtrecht.
+const STADTRECHT_AZ_URL = "https://erlangen.de/themenseite/recht/stadtrecht-a-z";
+
+const RECHT_WICHTIG = [
+  ["recht:uvpa-beiratssatzung", "Stadtrecht 235.00",
+   "Der Beirat berät Stadtrat und Verwaltung in allen Angelegenheiten des Ausschusses und gibt " +
+   "zu dessen Gutachten und Beschlüssen Empfehlungen ab."],
+  ["recht:orts-und-stadtteilbeiraete", "Stadtrecht 140.00",
+   "Welche Orts- und Stadtteilbeiräte es gibt und welche Gebiete sie vertreten — Fassung ab " +
+   "01.05.2026 mit Gebietsplan."],
+  ["recht:baumschutzverordnung", "Stadtrecht 023.00",
+   "Schutz des Baumbestands: Verbote, Befreiungen, Ausgleichszahlungen und Ersatzpflanzungen."],
+  ["recht:gruenanlagensatzung", "Stadtrecht 075.00",
+   "Benutzung der öffentlichen Grünanlagen: Verhalten, Ausnahmen, Benutzungssperren."],
+  ["recht:landschaftsschutzverordnung", "Stadtrecht 113.00",
+   "Schutz der Landschaftsräume mit Verboten und Erlaubnispflicht; die Karte grenzt die " +
+   "Gebiete ab."],
+  ["recht:sondernutzungssatzung", "Stadtrecht 192.00",
+   "Nutzung der Straße über den Gemeingebrauch hinaus — Außengastronomie, Werbeanlagen, " +
+   "Baustellen: Erlaubnispflicht und Ausnahmen."],
+  ["recht:strassenreinigungsverordnung", "Stadtrecht 211.00",
+   "Reinhaltung der Straßen und Sicherung der Gehbahnen im Winter — Umfang der Anliegerpflicht."],
+  ["recht:erschliessungsbeitragssatzung", "Stadtrecht 057.00",
+   "Erschließungsbeiträge nach dem BauGB: beitragsfähiger Aufwand, Verteilung, Gemeindeanteil."],
+  ["recht:milieuschutz-hertleinstrasse", "Stadtrecht 130.00",
+   "Erhaltungssatzung nach § 172 BauGB für die Östliche Hertleinstraße — Rückbau und " +
+   "Nutzungsänderung genehmigungspflichtig."],
+  ["recht:milieuschutz-jaminstrasse", "Stadtrecht 130.10",
+   "Zweite Erhaltungssatzung dieser Art, für das Wohngebiet um die Jaminstraße."],
+];
+
+/** Rang (auch für die Trefferliste beim Typ-Filter): kuratierte Einträge zuerst. */
+const RECHT_RANG = new Map(RECHT_WICHTIG.map(([id], i) => [id, i]));
+const RECHT_KURZ = new Map(RECHT_WICHTIG.map(([id, tag, kurz]) => [id, { tag, kurz }]));
+
+/** Themen stehen mit '|' getrennt in einer Spalte — hier als Liste. */
+function themenListe(s) {
+  return String(s ?? "").split("|").map((t) => t.trim()).filter(Boolean);
+}
+
+let rechtRows = null;          // Registry-Zeilen, einmal geladen
+let rechtThema = "";           // aktives Thema des einzigen Suchelements
+
+async function renderRechtUebersicht() {
+  document.body.classList.add("mode-recht");
+  await activateTab("doc");
+  if (!rechtRows) {
+    rechtRows = await q(
+      `SELECT * FROM (
+         SELECT id, title, beschreibung, themen,
+                (SELECT count(*) FROM plan_files pf WHERE pf.plan_id = plans.id)::INT AS n
+         FROM plans WHERE kind = 'recht') ORDER BY title`);
+    // Kuratierte Reihenfolge zuerst, der Rest bleibt alphabetisch.
+    rechtRows.sort((a, b) => (RECHT_RANG.get(a.id) ?? 99) - (RECHT_RANG.get(b.id) ?? 99));
+  }
+  const themen = [...new Set(rechtRows.flatMap((r) => themenListe(r.themen)))].sort();
+  const passt = (r) => !rechtThema || themenListe(r.themen).includes(rechtThema);
+  const wichtig = rechtRows.filter((r) => RECHT_RANG.has(r.id) && passt(r));
+  const weitere = rechtRows.filter((r) => !RECHT_RANG.has(r.id) && passt(r));
+
+  const karte = (r) => {
+    const kuratiert = RECHT_KURZ.get(r.id);
+    const meta = [kuratiert?.tag, `${r.n} Dokument${r.n === 1 ? "" : "e"}`].filter(Boolean);
+    return `<li data-plan="${escHtml(r.id)}">
+      <div class="r-title"><span class="badge badge-plan">RECHT</span>${escHtml(r.title)}</div>
+      <div class="r-desc">${escHtml(kuratiert?.kurz ?? r.beschreibung ?? "")}</div>
+      <div class="r-meta">${escHtml(meta.join(" · "))}</div>
+    </li>`;
+  };
+
+  $("doc-view").innerHTML = `
+    <h2 class="section-title">⚖️ Satzung &amp; Recht</h2>
+    <p class="section-intro">Die Satzung für den Umwelt-, Verkehrs- und Planungsbeirat und das
+      Erlanger Stadtrecht, das die Beratungen des Ausschusses prägt.</p>
+    <div class="recht-filter">
+      <label for="recht-thema">Thema</label>
+      <select id="recht-thema">
+        <option value="">alle</option>
+        ${themen.map((t) => `<option value="${escHtml(t)}"${t === rechtThema ? " selected" : ""}>${escHtml(t)}</option>`).join("")}
+      </select>
+      <span class="recht-anzahl">${wichtig.length + weitere.length} von ${rechtRows.length}</span>
+    </div>
+    ${wichtig.length ? `<h3 class="sub-head">Wichtig für die Ausschussarbeit</h3>
+      <ul class="reg-list">${wichtig.map(karte).join("")}</ul>` : ""}
+    ${weitere.length ? `<h3 class="sub-head">Weiteres Ortsrecht mit Ausschussbezug</h3>
+      <ul class="reg-list">${weitere.map(karte).join("")}</ul>` : ""}
+    ${wichtig.length + weitere.length === 0
+      ? `<p class="hint">Zu diesem Thema ist keine Rechtsvorschrift erfasst.</p>` : ""}
+    <p class="quelle">Das vollständige Ortsrecht — auch alles, was hier nicht erfasst ist —
+      führt die Stadt Erlangen im Verzeichnis
+      <a href="${STADTRECHT_AZ_URL}" target="_blank" rel="noopener">Erlanger Stadtrecht (A–Z)</a>.</p>`;
+
+  for (const li of $("doc-view").querySelectorAll("li[data-plan]"))
+    li.addEventListener("click", () => openPlan(li.dataset.plan));
+  $("recht-thema").addEventListener("change", (ev) => {
+    rechtThema = ev.target.value;
+    renderRechtUebersicht();
+  });
+  $("panel-doc").scrollTop = 0;
+  status(`${wichtig.length + weitere.length} Rechtsvorschriften`
+    + (rechtThema ? ` zum Thema „${rechtThema}“.` : "."));
 }
 
 function renderDocText(d) {
@@ -1347,12 +1485,16 @@ let startStatus = "Bereit.";
 
 function zeigeStart() {
   document.body.classList.add("show-start");
+  verlasseRechtModus();
   showResultList();
   status(startStatus);
 }
 
 async function oeffneKachel(ziel) {
   document.body.classList.remove("show-start");
+  // „Satzung & Recht“ ist eine eigene, ganzseitige Ansicht — keine Suche.
+  if (ziel === "recht") return await renderRechtUebersicht();
+  verlasseRechtModus();
   if (ziel === "suche" || ziel.startsWith("typ:")) {
     if (ziel.startsWith("typ:")) {
       $("f-type").value = ziel.slice(4);
@@ -1364,6 +1506,11 @@ async function oeffneKachel(ziel) {
     return;
   }
   await activateTab(ziel);
+}
+
+/** Zurück zur normalen Zwei-Spalten-Ansicht mit Trefferliste und Filterleiste. */
+function verlasseRechtModus() {
+  document.body.classList.remove("mode-recht");
 }
 
 // ── Filter füllen ────────────────────────────────────────────────────────────
@@ -1420,16 +1567,19 @@ try {
   // Viewer im Vordergrund und die neuen Treffer wären unsichtbar).
   // Die Kopfzeilensuche steht auch auf der Startseite — eine Suche verlässt
   // sie daher immer, sonst bliebe das Ergebnis hinter den Kacheln verborgen.
+  // Suche, Filter und ein Klick auf einen Tab verlassen die ganzseitige
+  // Recht-Ansicht; ein Klick auf eine Vorschrift darin (openPlan) nicht.
   $("search-form").addEventListener("submit", (ev) => {
     ev.preventDefault();
     document.body.classList.remove("show-start");
+    verlasseRechtModus();
     showResultList();
     runSearch();
   });
   for (const id of ["f-thema", "f-antrag", "f-year", "f-type", "f-ort", "f-beirat", "f-sort"])
-    $(id).addEventListener("change", () => { showResultList(); runSearch(); });
+    $(id).addEventListener("change", () => { verlasseRechtModus(); showResultList(); runSearch(); });
   for (const t of TABS)
-    $(`tab-${t}`).addEventListener("click", () => activateTab(t));
+    $(`tab-${t}`).addEventListener("click", () => { verlasseRechtModus(); activateTab(t); });
   $("mobile-back").addEventListener("click", showResultList);
 
   for (const kachel of document.querySelectorAll(".tile"))
