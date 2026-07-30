@@ -75,10 +75,35 @@ body {
   background: var(--c-top); color: #fff; font-size: 1rem; cursor: pointer;
 }
 .error { color: #d03b3b; font-weight: 600; }
+/* Hinweis unter Anmeldung und Ladeanzeige — wie im SBR-Portal deutlich
+   hervorgehoben, damit die fehlende Verbindung zur Stadt nicht überlesen wird. */
 .disclaimer {
   margin: 1rem 0 0; padding-top: .8rem;
   border-top: 1px solid var(--hairline);
-  font-size: .72rem; line-height: 1.5; color: var(--muted);
+  font-size: .82rem; line-height: 1.5; color: #b00020; font-weight: 700;
+}
+
+/* Ladebalken: gut 60 MB Datenbank sind spürbar, der Fortschritt gehört sichtbar */
+.progress {
+  margin: .9rem 0 .35rem; height: .5rem; overflow: hidden;
+  background: var(--page); border: 1px solid var(--hairline); border-radius: 999px;
+}
+.progress-bar {
+  height: 100%; width: 0; border-radius: 999px;
+  background: var(--accent); transition: width .15s linear;
+}
+/* Unbekannte Dauer (kein Content-Length, DuckDB-Start): laufender Balken */
+.progress-bar.unbekannt { width: 38%; animation: progress-lauf 1.2s ease-in-out infinite; }
+@keyframes progress-lauf {
+  from { margin-left: -38%; }
+  to   { margin-left: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-bar.unbekannt { animation: none; width: 100%; opacity: .5; }
+}
+.progress-detail {
+  margin: 0; min-height: 1.1em;
+  font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums;
 }
 
 /* ── Kopfzeile + Filter ──────────────────────────────────────────── */
@@ -712,12 +737,15 @@ h3.sub-head {
   .zust-list li { font-size: .95rem; padding: .6rem .8rem; }
 }
 
-/* ── Satzung & Recht: eigene, ganzseitige Ansicht ───────────────────────── */
-/* Rechtsvorschriften brauchen weder Trefferliste noch die volle Filterleiste —
-   in dieser Ansicht bleibt der Themenfilter der Seite als einziges Suchelement. */
-body.mode-recht #results,
-body.mode-recht #filterbar,
-body.mode-recht #mobile-back { display: none; }
+/* ── Ganzseitige Inhaltsansichten (Satzung & Recht, Ämter) ─────────────── */
+/* Diese Kacheln führen nicht in die Dokumentsuche, sondern auf eine in sich
+   geschlossene Seite: ohne Trefferliste, Filterleiste, Tabs und Kopfzeilen-
+   suche. Der Weg zurück führt über das Logo zur Startseite. Bei „Satzung &
+   Recht" bleibt der Themenfilter der Seite als einziges Suchelement. */
+body.mode-seite #results,
+body.mode-seite #filterbar,
+body.mode-seite #tabs,
+body.mode-seite #search-form { display: none; }
 body.mode-recht #doc-view { max-width: 62rem; }
 
 .recht-filter {
@@ -741,9 +769,17 @@ body.mode-recht #doc-view { max-width: 62rem; }
 .reg-list .r-desc { color: var(--ink-2); font-size: .84rem; line-height: 1.5; margin-top: .25rem; }
 .reg-list .r-meta { margin-top: .35rem; }
 
-/* Button, der wie ein Link aussieht (Zurück zur Übersicht in der Fußzeile) */
+/* Button, der wie ein Link aussieht */
 .link-btn {
   padding: 0; border: none; background: none; font: inherit;
   color: var(--accent); cursor: pointer;
 }
 .link-btn:hover { text-decoration: underline; }
+
+/* Zurück-Link: immer über der Überschrift bzw. dem Eintrag, deutlich sichtbar */
+.crumb-back {
+  display: block; margin: 0 0 .7rem; padding: 0;
+  border: none; background: none; font: inherit; font-weight: 700;
+  color: var(--accent); cursor: pointer; text-align: left;
+}
+.crumb-back:hover { text-decoration: underline; }

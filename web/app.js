@@ -13,10 +13,10 @@ import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1
 // Sichtbare App-Version (Fußzeile). Beim Ausliefern zusammen mit dem
 // ?v=…-Cache-Parameter in index.html erhöhen, damit Version und
 // tatsächlich geladener Code übereinstimmen.
-const APP_VERSION = "v24 · 2026-07-29";
+const APP_VERSION = "v26 · 2026-07-29";
 // Cache-Parameter für content/*.json — mit der App-Version mitziehen, damit
 // geänderte Inhalte nicht aus dem Browser-Cache kommen.
-const CONTENT_VERSION = "24";
+const CONTENT_VERSION = "26";
 
 const $ = (id) => document.getElementById(id);
 const status = (msg) => { $("statusbar").textContent = msg; };
@@ -79,10 +79,41 @@ async function checkAuth() {
   $("boot").hidden = false;
 }
 
+// ── Ladefortschritt ──────────────────────────────────────────────────────────
+
+/** anteil: 0…1 für den bekannten Fortschritt, null für „läuft, Dauer unbekannt". */
+function bootProgress(anteil, detail = "") {
+  const bar = $("boot-bar");
+  bar.classList.toggle("unbekannt", anteil === null);
+  bar.style.width = anteil === null ? "" : `${Math.round(anteil * 100)}%`;
+  $("boot-detail").textContent = detail;
+}
+
+const mb = (bytes) => (bytes / 1024 / 1024).toFixed(1).replace(".", ",");
+
 async function loadDbBytes() {
   const r = await fetch("graph.db");
   if (!r.ok) throw new Error("graph.db nicht gefunden.");
-  return new Uint8Array(await r.arrayBuffer());
+  // Ohne Content-Length (oder ohne Streams) bleibt nur der Gesamtabruf —
+  // dann läuft der Balken unbestimmt weiter.
+  const total = Number(r.headers.get("content-length")) || 0;
+  if (!r.body?.getReader) return new Uint8Array(await r.arrayBuffer());
+
+  const reader = r.body.getReader();
+  const teile = [];
+  let geladen = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    teile.push(value);
+    geladen += value.length;
+    bootProgress(total ? geladen / total : null,
+      total ? `${mb(geladen)} von ${mb(total)} MB` : `${mb(geladen)} MB geladen`);
+  }
+  const bytes = new Uint8Array(geladen);
+  let pos = 0;
+  for (const teil of teile) { bytes.set(teil, pos); pos += teil.length; }
+  return bytes;
 }
 
 // ── DuckDB-Wasm ──────────────────────────────────────────────────────────────
@@ -91,6 +122,7 @@ let conn;
 
 async function initDb(bytes) {
   bootMsg("Starte DuckDB-Wasm …");
+  bootProgress(null, "Datenbank wird geöffnet …");
   const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
   const workerUrl = URL.createObjectURL(new Blob(
     [`importScripts("${bundle.mainWorker}");`], { type: "text/javascript" }));
@@ -511,7 +543,9 @@ async function openPlan(planId) {
   }
 
   const badge = REGISTRY_BADGE[p.kind] ?? "PLAN";
-  const html = `<div class="doc-head">
+  const html = `
+  ${p.kind === "recht" ? `<button type="button" id="btn-recht-uebersicht" class="crumb-back">‹ Übersicht „Satzung &amp; Recht“</button>` : ""}
+  <div class="doc-head">
     <h3><span class="badge badge-plan">${badge}</span>${escHtml(p.title)}</h3>
     ${p.beschreibung ? `<p class="meta">${escHtml(p.beschreibung)}</p>` : ""}
     <p class="meta">${p.themen ? escHtml(themenText(p.themen)) : ""}</p>
@@ -530,9 +564,7 @@ async function openPlan(planId) {
     ${related.length ? `<div class="doc-page"><p class="doc-page-nr">${p.kind === "recht"
       ? "Beratungen zu dieser Vorschrift" : "Verknüpfte Tagesordnungspunkte"} (${related.length})</p><ul class="plan-files">` +
       related.map((r) => `<li>${r.date ?? ""} — ${escHtml(shortLabel(r.label, 90))}</li>`).join("") + `</ul></div>` : ""}
-    ${p.kind === "recht" ? `<p class="quelle">
-      <button type="button" id="btn-recht-uebersicht" class="link-btn">‹ Übersicht „Satzung &amp; Recht“</button>
-      · Weitere Vorschriften im
+    ${p.kind === "recht" ? `<p class="quelle">Weitere Vorschriften im
       <a href="${STADTRECHT_AZ_URL}" target="_blank" rel="noopener">Erlanger Stadtrecht (A–Z)</a>.</p>` : ""}
   </div>`;
 
@@ -547,14 +579,15 @@ async function openPlanFile(fileId, planTitle, badge = "PLAN", planId = null) {
   const [f] = Number.isInteger(Number(fileId)) ? await q(
     `SELECT titel, path, quelle_url, pages, text FROM plan_files WHERE rowid = ${Number(fileId)}`) : [];
   if (!f) return;
-  const html = `<div class="doc-head">
+  const html = `
+  ${planId ? `<button type="button" id="btn-back-plan" class="crumb-back">‹ Übersicht „${escHtml(shortLabel(planTitle, 40))}“</button>` : ""}
+  <div class="doc-head">
     <h3><span class="badge badge-plan">${badge}</span>${escHtml(f.titel)}</h3>
     <p class="meta">${escHtml(planTitle)}${f.pages ? ` · ${f.pages} Seiten` : ""}</p>
     <div class="doc-actions">
       <button id="btn-text" class="active" type="button">Text</button>
       ${f.path ? `<button id="btn-pdf" type="button">PDF</button>` : ""}
       ${f.quelle_url ? `<a href="${escHtml(safeUrl(f.quelle_url))}" target="_blank" rel="noopener">⬇ Original</a>` : ""}
-      ${planId ? `<button id="btn-back-plan" type="button">↩ Übersicht „${escHtml(shortLabel(planTitle, 30))}“</button>` : ""}
     </div>
   </div>
   <div id="doc-notice" class="notice" hidden></div>
@@ -626,7 +659,7 @@ let rechtRows = null;          // Registry-Zeilen, einmal geladen
 let rechtThema = "";           // aktives Thema des einzigen Suchelements
 
 async function renderRechtUebersicht() {
-  document.body.classList.add("mode-recht");
+  document.body.classList.add("mode-seite", "mode-recht");
   await activateTab("doc");
   if (!rechtRows) {
     rechtRows = await q(
@@ -653,6 +686,7 @@ async function renderRechtUebersicht() {
   };
 
   $("doc-view").innerHTML = `
+    <button type="button" id="btn-start" class="crumb-back">‹ Startseite</button>
     <h2 class="section-title">⚖️ Satzung &amp; Recht</h2>
     <p class="section-intro">Die Satzung für den Umwelt-, Verkehrs- und Planungsbeirat und das
       Erlanger Stadtrecht, das die Beratungen des Ausschusses prägt.</p>
@@ -674,6 +708,7 @@ async function renderRechtUebersicht() {
       führt die Stadt Erlangen im Verzeichnis
       <a href="${STADTRECHT_AZ_URL}" target="_blank" rel="noopener">Erlanger Stadtrecht (A–Z)</a>.</p>`;
 
+  $("btn-start").addEventListener("click", zeigeStart);
   for (const li of $("doc-view").querySelectorAll("li[data-plan]"))
     li.addEventListener("click", () => openPlan(li.dataset.plan));
   $("recht-thema").addEventListener("change", (ev) => {
@@ -1385,6 +1420,7 @@ async function renderAemter() {
   }).join("");
 
   box.innerHTML = `
+    <button type="button" class="crumb-back" data-start>‹ Startseite</button>
     <h2 class="section-title">🏢 Ämter &amp; Zuständigkeiten</h2>
     ${data.intro ? `<p class="section-intro">${escHtml(data.intro)}</p>` : ""}
     <div class="map-actions">
@@ -1430,6 +1466,8 @@ async function renderAemter() {
 
     ${data.stand ? `<p class="quelle">Quelle: Geschäftsverteilungsplan der Stadt Erlangen ·
       ${escHtml(data.stand)}</p>` : ""}`;
+
+  box.querySelector("[data-start]").addEventListener("click", zeigeStart);
 
   // Klick auf eine Organigramm-Kachel springt zur zugehörigen Detailkarte.
   box.querySelector(".org-referate-grid")?.addEventListener("click", (ev) => {
@@ -1485,16 +1523,22 @@ let startStatus = "Bereit.";
 
 function zeigeStart() {
   document.body.classList.add("show-start");
-  verlasseRechtModus();
+  verlasseSeitenModus();
   showResultList();
   status(startStatus);
 }
 
 async function oeffneKachel(ziel) {
   document.body.classList.remove("show-start");
-  // „Satzung & Recht“ ist eine eigene, ganzseitige Ansicht — keine Suche.
+  // „Satzung & Recht“ und „Ämter & Zuständigkeiten“ sind in sich geschlossene
+  // Inhaltsseiten: ganzseitig, ohne Trefferliste, Filter, Tabs und Suche.
+  // Zurück geht es über das Logo zur Startseite.
   if (ziel === "recht") return await renderRechtUebersicht();
-  verlasseRechtModus();
+  if (ziel === "aemter") {
+    document.body.classList.add("mode-seite");
+    return await activateTab("aemter");
+  }
+  verlasseSeitenModus();
   if (ziel === "suche" || ziel.startsWith("typ:")) {
     if (ziel.startsWith("typ:")) {
       $("f-type").value = ziel.slice(4);
@@ -1508,9 +1552,9 @@ async function oeffneKachel(ziel) {
   await activateTab(ziel);
 }
 
-/** Zurück zur normalen Zwei-Spalten-Ansicht mit Trefferliste und Filterleiste. */
-function verlasseRechtModus() {
-  document.body.classList.remove("mode-recht");
+/** Zurück zur normalen Zwei-Spalten-Ansicht mit Trefferliste, Filtern und Tabs. */
+function verlasseSeitenModus() {
+  document.body.classList.remove("mode-seite", "mode-recht");
 }
 
 // ── Filter füllen ────────────────────────────────────────────────────────────
@@ -1567,19 +1611,19 @@ try {
   // Viewer im Vordergrund und die neuen Treffer wären unsichtbar).
   // Die Kopfzeilensuche steht auch auf der Startseite — eine Suche verlässt
   // sie daher immer, sonst bliebe das Ergebnis hinter den Kacheln verborgen.
-  // Suche, Filter und ein Klick auf einen Tab verlassen die ganzseitige
-  // Recht-Ansicht; ein Klick auf eine Vorschrift darin (openPlan) nicht.
+  // Suche, Filter und ein Klick auf einen Tab verlassen eine ganzseitige
+  // Inhaltsansicht; ein Klick auf eine Vorschrift darin (openPlan) nicht.
   $("search-form").addEventListener("submit", (ev) => {
     ev.preventDefault();
     document.body.classList.remove("show-start");
-    verlasseRechtModus();
+    verlasseSeitenModus();
     showResultList();
     runSearch();
   });
   for (const id of ["f-thema", "f-antrag", "f-year", "f-type", "f-ort", "f-beirat", "f-sort"])
-    $(id).addEventListener("change", () => { verlasseRechtModus(); showResultList(); runSearch(); });
+    $(id).addEventListener("change", () => { verlasseSeitenModus(); showResultList(); runSearch(); });
   for (const t of TABS)
-    $(`tab-${t}`).addEventListener("click", () => { verlasseRechtModus(); activateTab(t); });
+    $(`tab-${t}`).addEventListener("click", () => { verlasseSeitenModus(); activateTab(t); });
   $("mobile-back").addEventListener("click", showResultList);
 
   for (const kachel of document.querySelectorAll(".tile"))
