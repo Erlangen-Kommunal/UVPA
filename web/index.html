@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H"
         crossorigin="anonymous">
-  <link rel="stylesheet" href="style.css?v=26">
+  <link rel="stylesheet" href="style.css?v=27">
   <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.34.0/dist/cytoscape.min.js"
           integrity="sha384-K+k+ywfDuvV9dwg+bwsVE0WGkrTnqFamaER+ydBgMFQTtlI0jdI9no9AjkQHwh/T"
           crossorigin="anonymous"></script>
@@ -43,14 +43,10 @@
     </form>
   </div>
 
-  <!-- Lade-Status. Die Datenbank ist gut 60 MB groß — der Balken zeigt den
-       Fortschritt des Downloads, danach läuft er unbestimmt weiter, solange
-       DuckDB startet und den Volltextindex lädt. -->
+  <!-- Lade-Status -->
   <div id="boot" class="overlay">
     <div class="gate-card">
       <p id="boot-msg">Lade Datenbank …</p>
-      <div class="progress"><div id="boot-bar" class="progress-bar unbekannt"></div></div>
-      <p id="boot-detail" class="progress-detail"></p>
       <p class="disclaimer">Ehrenamtlich erstellte Anwendung. Es werden ausschließlich
         öffentlich zugängliche Daten verwendet. Diese Anwendung steht in keiner
         Verbindung zur Stadt Erlangen.</p>
@@ -62,12 +58,6 @@
       <span class="logo">🏛️</span>
       <span class="brand">UVPA&nbsp;Erlangen<span class="sub">Umwelt-, Verkehrs- und Planungsausschuss</span></span>
     </a>
-    <form id="search-form" role="search">
-      <input id="search-input" type="search"
-             placeholder="Volltextsuche, z. B. Radweg Büchenbach, VO/2024, Bebauungsplan 472 …"
-             aria-label="Dokumente durchsuchen">
-      <button type="submit">Suchen</button>
-    </form>
   </header>
 
   <!-- Startseite: erste Ansicht nach dem Laden. Jede Kachel trägt in
@@ -121,7 +111,17 @@
     </nav>
   </div>
 
+  <!-- Suche und Filter gehören zusammen: die Suchleiste steht direkt über den
+       Filtern und nicht mehr in der Kopfzeile — sie erscheint damit nur dort,
+       wo auch gesucht wird (nicht auf der Startseite, nicht in den
+       ganzseitigen Ansichten). -->
   <div id="filterbar">
+    <form id="search-form" role="search">
+      <input id="search-input" type="search"
+             placeholder="Volltextsuche, z. B. Radweg Büchenbach, VO/2024, Bebauungsplan 472 …"
+             aria-label="Dokumente durchsuchen">
+      <button type="submit">Suchen</button>
+    </form>
     <label>Thema <select id="f-thema"><option value="">alle</option></select></label>
     <label>Antragsteller <select id="f-antrag"><option value="">alle</option></select></label>
     <label>Jahr <select id="f-year"><option value="">alle</option></select></label>
@@ -254,6 +254,6 @@
     <span id="version"></span>
   </footer>
 
-  <script type="module" src="app.js?v=26"></script>
+  <script type="module" src="app.js?v=27"></script>
 </body>
 </html>

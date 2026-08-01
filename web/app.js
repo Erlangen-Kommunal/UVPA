@@ -13,10 +13,10 @@ import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1
 // Sichtbare App-Version (Fußzeile). Beim Ausliefern zusammen mit dem
 // ?v=…-Cache-Parameter in index.html erhöhen, damit Version und
 // tatsächlich geladener Code übereinstimmen.
-const APP_VERSION = "v26 · 2026-07-29";
+const APP_VERSION = "v27 · 2026-07-30";
 // Cache-Parameter für content/*.json — mit der App-Version mitziehen, damit
 // geänderte Inhalte nicht aus dem Browser-Cache kommen.
-const CONTENT_VERSION = "26";
+const CONTENT_VERSION = "27";
 
 const $ = (id) => document.getElementById(id);
 const status = (msg) => { $("statusbar").textContent = msg; };
@@ -36,6 +36,10 @@ const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const TYPE_NAMES = { EI: "Einladung", NI: "Niederschrift", SU: "Sitzungsunterlagen",
                      BL: "Beschluss", VO: "Beschlussvorlage", AN: "Anlage" };
 const REGISTRY_BADGE = { plan: "PLAN", recht: "RECHT" };
+
+// Ausgangstext der Leseansicht (steht in index.html) — wird zurückgeholt, wenn
+// eine ganzseitige Ansicht die Leseansicht überschrieben hat.
+const DOC_HINWEIS = $("doc-view").innerHTML;
 
 // ── Zugangs-Gate (einfacher Frontend-Schutz, keine Verschlüsselung) ─────────
 // Der Deploy-Workflow legt auth.json mit einem PBKDF2-Hash von SITE_PASSWORD
@@ -79,41 +83,10 @@ async function checkAuth() {
   $("boot").hidden = false;
 }
 
-// ── Ladefortschritt ──────────────────────────────────────────────────────────
-
-/** anteil: 0…1 für den bekannten Fortschritt, null für „läuft, Dauer unbekannt". */
-function bootProgress(anteil, detail = "") {
-  const bar = $("boot-bar");
-  bar.classList.toggle("unbekannt", anteil === null);
-  bar.style.width = anteil === null ? "" : `${Math.round(anteil * 100)}%`;
-  $("boot-detail").textContent = detail;
-}
-
-const mb = (bytes) => (bytes / 1024 / 1024).toFixed(1).replace(".", ",");
-
 async function loadDbBytes() {
   const r = await fetch("graph.db");
   if (!r.ok) throw new Error("graph.db nicht gefunden.");
-  // Ohne Content-Length (oder ohne Streams) bleibt nur der Gesamtabruf —
-  // dann läuft der Balken unbestimmt weiter.
-  const total = Number(r.headers.get("content-length")) || 0;
-  if (!r.body?.getReader) return new Uint8Array(await r.arrayBuffer());
-
-  const reader = r.body.getReader();
-  const teile = [];
-  let geladen = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    teile.push(value);
-    geladen += value.length;
-    bootProgress(total ? geladen / total : null,
-      total ? `${mb(geladen)} von ${mb(total)} MB` : `${mb(geladen)} MB geladen`);
-  }
-  const bytes = new Uint8Array(geladen);
-  let pos = 0;
-  for (const teil of teile) { bytes.set(teil, pos); pos += teil.length; }
-  return bytes;
+  return new Uint8Array(await r.arrayBuffer());
 }
 
 // ── DuckDB-Wasm ──────────────────────────────────────────────────────────────
@@ -122,7 +95,6 @@ let conn;
 
 async function initDb(bytes) {
   bootMsg("Starte DuckDB-Wasm …");
-  bootProgress(null, "Datenbank wird geöffnet …");
   const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
   const workerUrl = URL.createObjectURL(new Blob(
     [`importScripts("${bundle.mainWorker}");`], { type: "text/javascript" }));
@@ -1554,6 +1526,9 @@ async function oeffneKachel(ziel) {
 
 /** Zurück zur normalen Zwei-Spalten-Ansicht mit Trefferliste, Filtern und Tabs. */
 function verlasseSeitenModus() {
+  // Die Recht-Übersicht liegt in der Leseansicht — beim Verlassen wieder den
+  // Ausgangstext zeigen, sonst stünde sie neben der Trefferliste weiter da.
+  if (document.body.classList.contains("mode-recht")) $("doc-view").innerHTML = DOC_HINWEIS;
   document.body.classList.remove("mode-seite", "mode-recht");
 }
 

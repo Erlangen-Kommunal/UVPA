@@ -83,29 +83,6 @@ body {
   font-size: .82rem; line-height: 1.5; color: #b00020; font-weight: 700;
 }
 
-/* Ladebalken: gut 60 MB Datenbank sind spürbar, der Fortschritt gehört sichtbar */
-.progress {
-  margin: .9rem 0 .35rem; height: .5rem; overflow: hidden;
-  background: var(--page); border: 1px solid var(--hairline); border-radius: 999px;
-}
-.progress-bar {
-  height: 100%; width: 0; border-radius: 999px;
-  background: var(--accent); transition: width .15s linear;
-}
-/* Unbekannte Dauer (kein Content-Length, DuckDB-Start): laufender Balken */
-.progress-bar.unbekannt { width: 38%; animation: progress-lauf 1.2s ease-in-out infinite; }
-@keyframes progress-lauf {
-  from { margin-left: -38%; }
-  to   { margin-left: 100%; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .progress-bar.unbekannt { animation: none; width: 100%; opacity: .5; }
-}
-.progress-detail {
-  margin: 0; min-height: 1.1em;
-  font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums;
-}
-
 /* ── Kopfzeile + Filter ──────────────────────────────────────────── */
 header {
   display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
@@ -123,9 +100,12 @@ header {
   display: flex; flex-direction: column;
 }
 header .sub { font-weight: 400; font-size: .72rem; color: var(--muted); }
-#search-form { display: flex; gap: .4rem; flex: 1; min-width: 20rem; max-width: 40rem; margin-left: auto; }
+/* Suchleiste: eigene erste Zeile der Filterleiste, über den Auswahlfeldern.
+   Die Breite begrenzt das Eingabefeld, nicht das Formular — sonst bliebe rechts
+   Platz und die Auswahlfelder rutschten in dieselbe Zeile. */
+#search-form { display: flex; gap: .4rem; flex: 0 0 100%; }
 #search-input {
-  flex: 1; padding: .45rem .7rem;
+  flex: 1; max-width: 40rem; padding: .45rem .7rem;
   border: 1px solid var(--hairline); border-radius: 6px; font-size: .95rem;
 }
 #search-form button {
@@ -744,8 +724,7 @@ h3.sub-head {
    Recht" bleibt der Themenfilter der Seite als einziges Suchelement. */
 body.mode-seite #results,
 body.mode-seite #filterbar,
-body.mode-seite #tabs,
-body.mode-seite #search-form { display: none; }
+body.mode-seite #tabs { display: none; }
 body.mode-recht #doc-view { max-width: 62rem; }
 
 .recht-filter {
